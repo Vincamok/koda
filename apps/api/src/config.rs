@@ -22,6 +22,19 @@ pub struct AiConfig {
     pub openai_api_key: Option<String>,
 }
 
+impl AiConfig {
+    pub fn build_adapter(&self, _http: &reqwest::Client) -> anyhow::Result<Box<dyn crate::ai::provider::AiProviderAdapter>> {
+        match self.default_provider.as_str() {
+            "anthropic" => {
+                let key = self.anthropic_api_key.clone()
+                    .ok_or_else(|| anyhow::anyhow!("ANTHROPIC_API_KEY not configured"))?;
+                Ok(Box::new(crate::ai::anthropic::AnthropicAdapter::new(key)))
+            }
+            p => Err(anyhow::anyhow!("unknown AI provider: {p}")),
+        }
+    }
+}
+
 #[derive(Clone, Deserialize)]
 pub struct AppConfig {
     pub database_url: String,

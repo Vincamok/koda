@@ -7,7 +7,7 @@ use tower_sessions::SessionManagerLayer;
 use tower_sessions_redis_store::RedisStore;
 
 use crate::{
-    handlers::{auth, orgs, personal, user_settings, workspaces},
+    handlers::{auth, ide, orgs, personal, user_settings, workspaces},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::request_id::request_id_layer,
     AppState,
@@ -47,6 +47,10 @@ pub fn build_router(state: AppState, session_layer: SessionManagerLayer<RedisSto
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id", delete(workspaces::delete_workspace))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/start", post(workspaces::post_workspace_start))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/stop", post(workspaces::post_workspace_stop))
+        // IDE routes
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/files", get(ide::get_workspace_files))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/files/*file_path", get(ide::get_workspace_file_content))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/ai/chat", post(ide::post_workspace_ai_chat))
         .layer(middleware::from_fn_with_state(state.clone(), with_org_context))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

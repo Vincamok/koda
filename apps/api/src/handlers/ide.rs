@@ -1,0 +1,181 @@
+use axum::{
+    extract::{Path, State},
+    response::{IntoResponse, Response, Sse},
+    Extension, Json,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use uuid::Uuid;
+
+use crate::{
+    ai::{
+        context_builder::AiContextBuilder,
+        provider::{AiContext, ChatMessage},
+    },
+    error::AppError,
+    middleware::auth::{AuthUser, OrgContext},
+    AppState,
+};
+
+// ── File browser ──────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct FileNode {
+    pub name: String,
+    pub path: String,
+    #[serde(rename = "type")]
+    pub node_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<FileNode>>,
+}
+
+pub async fn get_workspace_files(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    // Verify workspace belongs to org
+    let ws = sqlx::query!(
+        "SELECT id, uid FROM workspaces WHERE id = $1 AND organization_id = $2",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // In Phase 2 this will query the actual volume via the git-manager API.
+    // For now return a placeholder tree.
+    let _ = ws;
+    let placeholder: Vec<FileNode> = vec![
+        FileNode {
+            name: "src".into(),
+            path: "src".into(),
+            node_type: "dir".into(),
+            children: Some(vec![
+                FileNode { name: "main.rs".into(), path: "src/main.rs".into(), node_type: "file".into(), children: None },
+                FileNode { name: "lib.rs".into(), path: "src/lib.rs".into(), node_type: "file".into(), children: None },
+            ]),
+        },
+        FileNode { name: "Cargo.toml".into(), path: "Cargo.toml".into(), node_type: "file".into(), children: None },
+        FileNode { name: "README.md".into(), path: "README.md".into(), node_type: "file".into(), children: None },
+    ];
+
+    Ok(Json(json!({ "data": placeholder })))
+}
+
+pub async fn get_workspace_file_content(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id, file_path)): Path<(Uuid, Uuid, String)>,
+) -> Result<impl IntoResponse, AppError> {
+    sqlx::query!(
+        "SELECT id FROM workspaces WHERE id = $1 AND organization_id = $2",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Phase 2: read from volume. Stub returns placeholder content.
+    Ok(Json(json!({
+        "data": {
+            "path": file_path,
+            "content": "// File content will be served from workspace volume in Phase 2\n"
+        }
+    })))
+}
+
+// ── AI Chat SSE ───────────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct AiChatRequest {
+    pub message: String,
+    pub context: Option<AiChatContext>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AiChatContext {
+    pub file_path: Option<String>,
+    pub file_content: Option<String>,
+}
+
+pub async fn post_workspace_ai_chat(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<AiChatRequest>,
+) -> Result<Response, AppError> {
+    use futures::StreamExt;
+
+    // Verify workspace membership
+    sqlx::query!(
+        "SELECT id FROM workspaces WHERE id = $1 AND organization_id = $2",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Fetch user settings for locale
+    let settings = sqlx::query!(
+        "SELECT locale FROM user_settings WHERE user_id = $1",
+        auth.id
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+    let locale = settings.map(|s| s.locale).unwrap_or_else(|| "fr".into());
+
+    // Fetch org-level KODA.md if it exists (placeholder)
+    let koda_md: Option<String> = None;
+
+    // Build context using AiContextBuilder
+    let mut builder = AiContextBuilder::new()
+        .locale(&locale);
+
+    if let Some(km) = koda_md {
+        builder = builder.koda_md(&km);
+    }
+
+    // Add file context as user message prefix
+    let mut user_message = body.message.clone();
+    if let Some(ctx) = &body.context {
+        if let (Some(path), Some(content)) = (&ctx.file_path, &ctx.file_content) {
+            if !content.is_empty() {
+                user_message = format!(
+                    "Current file: {path}\n```\n{content}\n```\n\n{user_message}",
+                );
+            }
+        }
+    }
+
+    let context = builder.build(
+        vec![ChatMessage { role: "user".into(), content: user_message }],
+        vec![],
+    );
+
+    let adapter = state.config.ai.build_adapter(&state.http)
+        .map_err(|e| AppError::Internal(e))?;
+
+    let stream = adapter
+        .chat_stream(context)
+        .await
+        .map_err(|e| AppError::Internal(e))?;
+
+    let sse_stream = stream.map(|event| {
+        match event {
+            Ok(text) => {
+                let data = json!({ "delta": { "text": text } }).to_string();
+                Ok::<_, std::convert::Infallible>(axum::response::sse::Event::default().data(data))
+            }
+            Err(_) => Ok(axum::response::sse::Event::default().data("[DONE]")),
+        }
+    });
+
+    Ok(Sse::new(sse_stream).into_response())
+}
