@@ -33,7 +33,10 @@ Koda est une plateforme de gestion d'environnements de développement à la dema
 | Config service | **`config/default.yaml` par service** + `.env.example` + figment | Config centrale |
 | Réseaux Docker | **Multi-réseau par workspace** (`internal`, `services`, `koda-egress`) | Réseau unique |
 | Espace personnel | **PersonalSpace** (volume Docker personnel par user + fichiers config) | Settings en DB seuls |
-| Sécurité intégrée | **Scans dans CI/CD** + LLM sécurité dédié + SecurityPolicy | Post-prod uniquement |
+| Sécurité intégrée | **Scans dans CI/CD** + LLM sécurité configurable (SecurityAiConfig) + SecurityPolicy | Post-prod uniquement |
+| LLM sécurité | **SecurityAiConfig** par org (provider + model + system_prompt overridable) | Instance partagée avec chat IA |
+| secret_scan | **Règles built-in** (entropy + regex) + **ScanRule custom** (org + workspace) | Trufflehog/Gitleaks externe |
+| image_scan déclencheur | **ImageScanTrigger configurable** dans SecurityPolicy (OnBuild \| OnLaunch \| Both) | Toujours au lancement |
 | Proxy trust | **`TRUSTED_PROXY_CIDRS`** par service + `axum-client-ip` | Trust aveugle headers |
 
 ## Environnements
@@ -364,17 +367,71 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 | `dependency_scan` | `cargo audit`, `npm audit`, `pip-audit` | Quotidien + PR |
 | `image_scan` | Trivy/Grype sur l'image workspace avant lancement | Build image |
 
-### LLM sécurité dédié
-- Agent séparé du chat IA général, system prompt spécialisé OWASP/CVE
-- Analyse le diff avant la phase de Revue
-- Severity scoring : Critical / High / Medium / Low / Info
-- Fix suggestions avec explication
-- Résultat → `SecurityReport(workspace_id, pipeline_run_id, findings[])`
+### LLM sécurité — provider et modèle configurables
+
+Réutilise le trait `AiProviderAdapter` mais comme instance distincte avec `SecurityAiConfig` :
+
+```rust
+pub struct SecurityAiConfig {
+    pub provider:      String,  // "anthropic", "openai", "ollama", ...
+    pub model:         String,  // modèle choisi (ex: claude-haiku-4-5 pour rapidité)
+    pub system_prompt: String,  // OWASP built-in ou override org en DB
+    pub max_tokens:    u32,
+}
+```
+
+- Chaque org configure son propre LLM sécurité dans `SecurityPolicy.security_ai_config`
+- Default : même provider que le chat IA général, modèle léger, system prompt OWASP built-in
+- `system_prompt` en DB → l'admin peut affiner les règles sans redéployer
+- Format de réponse structuré imposé : `JSON {findings: [{file, line, severity, category, description, fix}]}`
+
+### `secret_scan` — règles natives + règles custom évolutives
+
+Pattern Open/Closed (même approche que MCP et thèmes) :
+
+**Règles built-in** (non supprimables, toujours actives) :
+- Shannon entropy > seuil sur strings > N chars → token probable
+- Regex : AWS keys, GitHub tokens, `-----BEGIN * KEY-----`, `sk_live_*`, `xoxb-*` (Slack), JWT `eyJ*`, URLs avec credentials...
+
+**Règles custom** (org + workspace) :
+```rust
+pub struct ScanRule {
+    pub id:        Uuid,
+    pub name:      String,
+    pub rule_type: RuleType,   // Regex | Entropy | Composite (entropy ET regex)
+    pub pattern:   String,
+    pub severity:  Severity,
+    pub enabled:   bool,
+}
+```
+
+Hiérarchie d'application :
+```
+built-in rules (toujours)
+  + OrgScanRule (patterns métier org — ex: format clé API interne)
+    + WorkspaceScanRule (patterns propres à un workspace)
+```
+
+Entité : `ScanRule(id, org_id nullable, workspace_id nullable, rule_type, pattern, severity, enabled)`
+
+### `image_scan` — déclencheur configurable
+
+```rust
+pub enum ImageScanTrigger {
+    OnBuild,    // dans Harness CI à chaque build d'image (défaut)
+    OnLaunch,   // dans l'orchestrateur à chaque lancement workspace
+    Both,       // recommandé en prod
+    Disabled,
+}
+```
+
+Stocké dans `SecurityPolicy.image_scan_trigger` — configurable par org.
 
 ### Nouvelles entités sécurité
 - `SecurityReport` : workspace_id, pipeline_run_id, triggered_by, score_global
 - `VulnerabilityFinding` : report_id, severity, category, file, line, description, fix_suggestion
-- `SecurityPolicy` : org_id, required_scans[], min_severity_to_block (bloque la Revue si severity atteinte)
+- `SecurityPolicy` : org_id, required_scans[], min_severity_to_block, security_ai_config, image_scan_trigger
+- `ScanRule` : org_id nullable, workspace_id nullable, rule_type, pattern, severity, enabled
 
 ### Intégration dans le cycle workspace
 ```
@@ -437,7 +494,8 @@ Chat IA (web-client)
 - `WorkspaceMCPBinding` : connecteur actif dans un workspace avec config + SecretRefs
 - `SecurityReport` : résultat d'un scan sécurité lié à un workspace/pipeline
 - `VulnerabilityFinding` : finding individuel d'un SecurityReport
-- `SecurityPolicy` : politique sécurité par org (scans requis, seuil de blocage)
+- `SecurityPolicy` : org_id, required_scans[], min_severity_to_block, security_ai_config (JSON), image_scan_trigger
+- `ScanRule` : règle de détection custom (org_id|workspace_id, rule_type Regex|Entropy|Composite, pattern, severity, enabled)
 
 ## Contraintes non-négociables
 - Pas de Docker-in-Docker (DinD)

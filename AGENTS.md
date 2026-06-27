@@ -60,6 +60,13 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 - Ne jamais logger le contenu des fichiers PersonalSpace
 - `UserMCPBinding` (personnel) est distinct de `WorkspaceMCPBinding` (workspace)
 
+**Sécurité — scans**
+- `SecurityAiConfig` dans `SecurityPolicy` : chaque org configure son propre provider/model/system_prompt sécurité
+- `ScanRule` built-in ne peuvent être ni modifiées ni désactivées — les règles custom s'y ajoutent
+- Hiérarchie des règles : built-in → OrgScanRule → WorkspaceScanRule (toutes appliquées)
+- `ImageScanTrigger` dans `SecurityPolicy` : `OnBuild` (Harness) | `OnLaunch` (orchestrateur) | `Both` | `Disabled`
+- Le `system_prompt` sécurité est stocké en DB dans `SecurityPolicy.security_ai_config` — ne jamais hardcoder
+
 **Migrations (sqlx-migrate)**
 - Nommage : `YYYYMMDDHHMM_<objet>_<action>.sql` (ex: `202604302245_workspace_add_status_index.sql`)
 - Chaque migration est un fichier SQL pur dans `infra/migrations/`

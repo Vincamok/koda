@@ -129,7 +129,13 @@
 - `get_workspace_security_reports(uid)` : liste les SecurityReport du workspace
 - `get_security_report(uid, rid)` : détail d'un rapport + VulnerabilityFinding[]
 - `get_org_security_policy(oid)` : politique sécurité de l'organisation
-- `put_org_security_policy(oid)` : configure `SecurityPolicy` (owner/admin uniquement)
+- `put_org_security_policy(oid)` : configure `SecurityPolicy` (owner/admin) — inclut `security_ai_config` + `image_scan_trigger`
+- `get_scan_rules(oid)` : liste built-in + règles custom org
+- `post_scan_rule(oid)` : crée une `ScanRule` custom org (Regex | Entropy | Composite)
+- `patch_scan_rule(oid, rid)` : modifie/active/désactive une règle custom
+- `delete_scan_rule(oid, rid)` : supprime une règle custom (pas les built-in)
+- `get_workspace_scan_rules(uid)` : règles spécifiques au workspace
+- `post_workspace_scan_rule(uid)` : crée une règle custom workspace
 
 ### `src/handlers/tickets.rs`
 - `get_workspace_tickets(uid)` : liste `TicketRecord` du workspace
@@ -164,7 +170,7 @@
 - `audit.rs` : AuditEvent
 - `quota.rs` : OrganizationQuota
 - `mcp.rs` : MCPConnectorDefinition, WorkspaceMCPBinding, UserMCPBinding
-- `security.rs` : SecurityReport, VulnerabilityFinding, SecurityPolicy
+- `security.rs` : SecurityReport, VulnerabilityFinding, SecurityPolicy, ScanRule, SecurityAiConfig
 
 ### `src/ai/`
 - `provider.rs` / `trait AiProviderAdapter` : `chat_stream(messages, context) -> Stream<String>`
@@ -256,11 +262,25 @@
   - Stocke résumé + risques en DB liés au workspace
 
 ### `src/jobs/security.rs`
-- `run_secret_scan(workspace, pipeline_run_id)` : scanne le code (regex patterns + entropie Shannon) → `SecurityReport`
-- `run_sast(workspace, pipeline_run_id)` : appelle LLM sécurité dédié (system prompt OWASP) sur le diff → `VulnerabilityFinding[]`
-- `run_dependency_scan(workspace, pipeline_run_id)` : exécute cargo audit / npm audit / pip-audit dans container isolé
-- `run_image_scan(image_name, pipeline_run_id)` : lance Trivy/Grype sur l'image → findings
+- `run_secret_scan(workspace, pipeline_run_id)` :
+  - Charge `ScanRule` built-in + org + workspace
+  - Applique Shannon entropy + regex sur tous les fichiers du workspace
+  - `RuleType::Composite` = entropy ET regex combinés
+  - Produit `SecurityReport` + `VulnerabilityFinding[]`
+- `run_sast(workspace, pipeline_run_id)` :
+  - Charge `SecurityPolicy.security_ai_config` → instancie `AiProviderAdapter` avec config dédiée
+  - Envoie le diff + system_prompt OWASP (ou override org) au LLM choisi
+  - Parse la réponse JSON `{findings: [...]}` → `VulnerabilityFinding[]`
+- `run_dependency_scan(workspace, pipeline_run_id)` : exécute cargo audit / npm audit / pip-audit dans container isolé éphémère
+- `run_image_scan(image_name, pipeline_run_id)` :
+  - Appelé depuis Harness CI (`OnBuild`) ou orchestrateur (`OnLaunch`) selon `SecurityPolicy.image_scan_trigger`
+  - Lance Trivy/Grype sur l'image → findings
 - `check_security_policy(org_id, report_id) -> bool` : vérifie si `SecurityPolicy.min_severity_to_block` est atteint
+
+### `src/scan_rules/`
+- `mod.rs` / `ScanRuleEngine` : charge built-in + org + workspace rules, les applique dans l'ordre
+- `built_in.rs` : règles natives non modifiables (entropy, common secrets regex)
+- `registry.rs` : cache des règles custom en mémoire (rechargé depuis DB à chaque scan)
 
 ### `src/jobs/gc.rs`
 - `collect_orphan_volumes()` : liste volumes Docker sans workspace actif → archive/supprime
@@ -597,4 +617,5 @@
 31. `202600010030_security_policies_create.sql`
 32. `202600010031_security_reports_create.sql`
 33. `202600010032_vulnerability_findings_create.sql`
-34. `202600010033_enable_rls.sql` : activation RLS sur tables critiques
+34. `202600010033_scan_rules_create.sql`
+35. `202600010034_enable_rls.sql` : activation RLS sur tables critiques
