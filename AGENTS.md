@@ -50,11 +50,25 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 - Clés SSH temporaires : écrites dans `/run/secrets/<workspace_id>/` (tmpfs), supprimées après clone
 - Branches pipeline éphémères : `pipeline/<uid>/<timestamp>`, supprimées après merge/rejet
 
-**Frontend (Next.js)**
+**Frontend Dashboard (Next.js)**
 - Composants dans `apps/dashboard/src/components/`
 - Appels API via `apps/dashboard/src/lib/api-client.ts` (jamais de `fetch` brut dans les composants)
 - Internationalisation via clés i18n dès le départ (mono-langue FR au MVP)
 - Accessibilité WCAG 2.1 AA : labels explicites, focus visible, contraste suffisant
+
+**Web IDE Client (`apps/web-client/`)**
+- Monaco Editor pour l'édition — ne pas reconfigurer le worker Monaco (rester sur bundler standard)
+- Toutes les opérations fichiers via `GET|PUT /api/v1/workspaces/:uid/files/*` — jamais d'accès direct au volume Docker
+- Terminal xterm.js : connexion WebSocket via sozu (`/[UID]/ide/terminal`)
+- Chat IA : consommer le SSE de `POST /api/v1/workspaces/:uid/ai/chat` via `EventSource`
+- Les patches IA sont affichés en diff Monaco avant application — jamais appliqués silencieusement
+
+**CI/CD (Harness)**
+- Pipelines dans `infra/harness/`
+- Merge sur `main` → déploiement prod automatique (Harness pipeline)
+- Images taguées `sha-<commit>` — jamais `latest` en prod
+- Rollback = redéployer le tag précédent depuis le Harness registry
+- `sqlx migrate run` exécuté automatiquement en début de pipeline prod
 
 ### Entités — ordre de dépendance pour les migrations
 ```

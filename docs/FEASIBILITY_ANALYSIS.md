@@ -148,16 +148,48 @@ Axum est le framework HTTP Rust le plus adapté : async natif tokio, extracteurs
 
 ---
 
-### 2.5 Dashboard (Next.js)
+### 2.5 Dashboard (Next.js) + Web IDE Client
 
 **Faisabilité : ✅ Élevée**
 
 Next.js + shadcn/ui + Tailwind est une combinaison solide et accessible. La cible WCAG 2.1 AA est atteignable avec shadcn/ui (composants Radix sous-jacents, accessibles par défaut).
 
-**Points pratiques :**
+**Points pratiques dashboard :**
 - Générer le client TypeScript depuis le schéma OpenAPI Rust (via `utoipa` + `openapi-typescript`) pour éviter toute désynchronisation types frontend/backend.
 - SSE consommé via `EventSource` natif browser — pas de lib externe nécessaire.
 - Mode "quick-start" au premier workspace : étapes 4 et 5 optionnelles, postposées, avec bandeau de progression non bloquant.
+
+**Koda Web IDE (`apps/web-client/`) — plugin `koda-web-ide`**
+
+Client web natif embarqué dans Koda, différenciateur de la plateforme par rapport à un simple hébergement de code-server.
+
+| Composant | Technologie | Notes |
+|-----------|------------|-------|
+| Éditeur | **Monaco Editor** (Apache 2.0) | Même moteur que VS Code, support LSP, diff inline |
+| File tree | React + Koda API | `GET /api/v1/workspaces/:uid/files` |
+| Terminal | **xterm.js** + WebSocket | Via sozu `/[UID]/ide/terminal` → container PTY |
+| Chat IA | SSE streaming | `POST /api/v1/workspaces/:uid/ai/chat` → AiProviderAdapter |
+| Git panel | Koda API | diff, stage, commit, push sans quitter l'IDE |
+
+**Flux chat IA → patch :**
+```
+1. Utilisateur décrit la modification en langage naturel
+2. L'API envoie fichiers ouverts + prompt au LLM via AiProviderAdapter
+3. Réponse streamée (SSE) affichée progressivement dans la sidebar
+4. Si patch proposé → affiché en diff Monaco, appliqué sur clic utilisateur
+5. Jamais de modification silencieuse du filesystem
+```
+
+**Risque faisabilité :** Monaco Editor dans un environnement `/[UID]/ide/` avec path stripping nécessite que les assets Monaco (workers JS) soient servis correctement sous ce chemin. Configurer le `publicPath` webpack/vite en conséquence dès le départ.
+
+**Nouveaux endpoints API nécessaires :**
+```
+GET  /api/v1/workspaces/:uid/files          ?path=/src  → liste répertoire
+GET  /api/v1/workspaces/:uid/files/content  ?path=...   → lit fichier
+PUT  /api/v1/workspaces/:uid/files/content  ?path=...   → écrit fichier
+POST /api/v1/workspaces/:uid/ai/chat                    → SSE streaming
+GET  /api/v1/workspaces/:uid/ai/chat/:id                → historique session
+```
 
 ---
 
@@ -351,8 +383,10 @@ Client CLI Rust (binaire unique, distribuable) établissant un tunnel SSH vers l
 - PostgreSQL + sqlx-migrate + modèles de base (Workspace, User, Organization).
 - Axum skeleton : auth session + OAuth, endpoints `/api/v1/auth/*`.
 - Trait `AiProviderAdapter` (interface + implémentation Anthropic HTTP).
-- Docker Compose dev : api, dashboard, db, redis, docker-socket-proxy, sozu.
+- Docker Compose dev : api, dashboard, web-client, db, redis, docker-socket-proxy, sozu.
 - Service `gateway/` : client sozu-command-lib minimal (add/remove HttpFrontend).
+- Pipeline Harness : lint + test + build image + push registry (toutes branches).
+- Pipeline Harness prod : déploiement auto sur merge `main`.
 
 ### Phase 1 — Workspace minimal (semaines 5-10)
 - Création workspace + UID.
@@ -402,3 +436,6 @@ Client CLI Rust (binaire unique, distribuable) établissant un tunnel SSH vers l
 | Health checks workspace | ✅ | Probe définie dans `PluginDefinition` |
 | Auth sozu ↔ Koda | ✅ | Socket Unix local, pas d'API réseau exposée |
 | LLM abstraction | ⚠️ | Trait `AiProviderAdapter` à implémenter Phase 0 |
+| CI/CD Harness | ✅ | Mirror GitHub → Harness, build → registry, deploy prod auto sur main |
+| Web IDE (Monaco) | ⚠️ | publicPath webpack à configurer sous `/[UID]/ide/` dès le départ |
+| Opérations fichiers IDE | ✅ | Via Koda API uniquement, middleware auth Axum obligatoire |
