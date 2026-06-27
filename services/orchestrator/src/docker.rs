@@ -12,7 +12,6 @@ use uuid::Uuid;
 
 pub struct DockerManager {
     docker: Docker,
-    pub network: String,
     pub workspace_image: String,
     pub personal_volume_prefix: String,
 }
@@ -20,7 +19,6 @@ pub struct DockerManager {
 impl DockerManager {
     pub fn new(
         socket_path: &str,
-        network: impl Into<String>,
         workspace_image: impl Into<String>,
         personal_volume_prefix: impl Into<String>,
     ) -> anyhow::Result<Self> {
@@ -35,29 +33,67 @@ impl DockerManager {
         };
         Ok(Self {
             docker,
-            network: network.into(),
             workspace_image: workspace_image.into(),
             personal_volume_prefix: personal_volume_prefix.into(),
         })
     }
 
-    /// Ensure the workspace overlay network exists.
-    pub async fn ensure_network(&self) -> anyhow::Result<()> {
-        match self.docker.inspect_network::<&str>(&self.network, None).await {
-            Ok(_) => Ok(()),
-            Err(_) => {
-                self.docker
-                    .create_network(CreateNetworkOptions {
-                        name: self.network.clone(),
-                        driver: "bridge".to_string(),
-                        ..Default::default()
-                    })
-                    .await
-                    .context("create workspace network")?;
-                tracing::info!(network = %self.network, "created workspace network");
-                Ok(())
+    /// Create the two per-workspace isolated networks if they don't exist.
+    pub async fn ensure_workspace_networks(&self, workspace_id: Uuid) -> anyhow::Result<()> {
+        let internal_net = internal_net_name(workspace_id);
+        let services_net = services_net_name(workspace_id);
+
+        for (net_name, internal) in [(&internal_net, true), (&services_net, false)] {
+            match self.docker.inspect_network::<&str>(net_name, None).await {
+                Ok(_) => {}
+                Err(_) => {
+                    self.docker
+                        .create_network(CreateNetworkOptions {
+                            name: net_name.clone(),
+                            driver: "bridge".to_string(),
+                            internal,
+                            ..Default::default()
+                        })
+                        .await
+                        .with_context(|| format!("create network {net_name}"))?;
+                    tracing::info!(network = %net_name, "created workspace network");
+                }
             }
         }
+
+        Ok(())
+    }
+
+    /// Remove the two per-workspace networks (best-effort).
+    pub async fn delete_workspace_networks(&self, workspace_id: Uuid) -> anyhow::Result<()> {
+        for net_name in [internal_net_name(workspace_id), services_net_name(workspace_id)] {
+            if let Err(e) = self.docker.remove_network(&net_name).await {
+                tracing::warn!(network = %net_name, error = %e, "failed to remove workspace network");
+            }
+        }
+        Ok(())
+    }
+
+    /// Get the container IP on the services network (used for sozu routing).
+    pub async fn get_workspace_ip(&self, workspace_id: Uuid) -> anyhow::Result<String> {
+        let container_name = format!("ws-{}", workspace_id);
+        let services_net = services_net_name(workspace_id);
+
+        let info = self
+            .docker
+            .inspect_container(&container_name, None::<InspectContainerOptions>)
+            .await
+            .context("inspect workspace container")?;
+
+        let ip = info
+            .network_settings
+            .and_then(|ns| ns.networks)
+            .and_then(|nets| nets.get(&services_net).cloned())
+            .and_then(|net| net.ip_address)
+            .filter(|ip| !ip.is_empty())
+            .context("workspace container has no IP on services network")?;
+
+        Ok(ip)
     }
 
     /// Get or create the personal-space volume for a user.
@@ -84,7 +120,7 @@ impl DockerManager {
         Ok(volume_name)
     }
 
-    /// Start a workspace container.
+    /// Start a workspace container attached to two per-workspace networks.
     pub async fn start_workspace(
         &self,
         workspace_id: Uuid,
@@ -98,6 +134,11 @@ impl DockerManager {
         let container_name = format!("ws-{}", workspace_id);
         let personal_volume = self.ensure_personal_volume(user_id).await?;
         let workspace_volume = format!("koda-ws-{}", workspace_id);
+
+        // Create per-workspace networks before the container
+        self.ensure_workspace_networks(workspace_id).await?;
+        let services_net = services_net_name(workspace_id);
+        let internal_net = internal_net_name(workspace_id);
 
         // Required security labels
         let labels = HashMap::from([
@@ -117,7 +158,8 @@ impl DockerManager {
             cpu_quota: Some(cpu_quota),
             memory: Some(memory),
             pids_limit: Some(pids_limit as i64),
-            network_mode: Some(self.network.clone()),
+            // Primary network: services (reachable by sozu)
+            network_mode: Some(services_net.clone()),
             binds: Some(vec![
                 format!("{workspace_volume}:/workspace"),
                 format!("{personal_volume}:/personal:ro"),
@@ -162,9 +204,23 @@ impl DockerManager {
             .await
             .context("start workspace container")?;
 
+        // Also attach to internal network for service-to-service communication
+        self.docker
+            .connect_network(
+                &internal_net,
+                ConnectNetworkOptions {
+                    container: container_name.clone(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .context("connect workspace to internal network")?;
+
         tracing::info!(
             workspace_id = %workspace_id,
             container_id = %create_resp.id,
+            services_net = %services_net,
+            internal_net = %internal_net,
             "workspace container started"
         );
 
@@ -185,7 +241,7 @@ impl DockerManager {
         Ok(())
     }
 
-    /// Remove a workspace container and its volume.
+    /// Remove a workspace container, its volume, and its networks.
     pub async fn delete_workspace(&self, workspace_id: Uuid) -> anyhow::Result<()> {
         let container_name = format!("ws-{}", workspace_id);
         let _ = self
@@ -200,7 +256,10 @@ impl DockerManager {
         let volume_name = format!("koda-ws-{}", workspace_id);
         let _ = self.docker.remove_volume(&volume_name, None).await;
 
-        tracing::info!(workspace_id = %workspace_id, "workspace container + volume removed");
+        // Remove per-workspace networks
+        self.delete_workspace_networks(workspace_id).await?;
+
+        tracing::info!(workspace_id = %workspace_id, "workspace container + volume + networks removed");
         Ok(())
     }
 
@@ -222,4 +281,12 @@ impl DockerManager {
             Err(_) => Ok(false),
         }
     }
+}
+
+fn services_net_name(workspace_id: Uuid) -> String {
+    format!("koda-ws-{}-services", workspace_id)
+}
+
+fn internal_net_name(workspace_id: Uuid) -> String {
+    format!("koda-ws-{}-internal", workspace_id)
 }

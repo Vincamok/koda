@@ -1,5 +1,6 @@
 mod config;
 mod docker;
+mod sozu;
 mod worker;
 
 use sqlx::postgres::PgPoolOptions;
@@ -33,7 +34,6 @@ async fn main() -> anyhow::Result<()> {
 
     let docker = DockerManager::new(
         &config.docker_socket,
-        &config.workspace_network,
         &config.workspace_image,
         &config.personal_volume_prefix,
     )?;
@@ -44,6 +44,9 @@ async fn main() -> anyhow::Result<()> {
         docker,
         group: config.consumer_group,
         consumer: config.consumer_name,
+        sozu_socket: config.sozu_socket,
+        base_domain: config.base_domain,
+        workspace_port: config.workspace_port,
     };
 
     worker.run().await?;

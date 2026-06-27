@@ -5,6 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::docker::DockerManager;
+use crate::sozu::SozuClient;
 
 const STREAM: &str = "koda:jobs:orchestrator";
 const DEAD_LETTER: &str = "koda:jobs:orchestrator:dead";
@@ -24,6 +25,9 @@ pub struct OrchestratorWorker {
     pub docker: DockerManager,
     pub group: String,
     pub consumer: String,
+    pub sozu_socket: Option<String>,
+    pub base_domain: String,
+    pub workspace_port: u16,
 }
 
 impl OrchestratorWorker {
@@ -36,7 +40,6 @@ impl OrchestratorWorker {
         match result {
             Ok(_) | Err(_) => {} // group already exists is fine
         }
-        self.docker.ensure_network().await?;
         Ok(())
     }
 
@@ -105,7 +108,7 @@ impl OrchestratorWorker {
 
     async fn start_workspace(&mut self, workspace_id: Uuid, org_id: Uuid) -> anyhow::Result<()> {
         let ws = sqlx::query!(
-            "SELECT id, cpu_limit, ram_limit_mb, pids_limit, created_by FROM workspaces WHERE id = $1 AND organization_id = $2",
+            "SELECT id, uid, cpu_limit, ram_limit_mb, pids_limit, created_by FROM workspaces WHERE id = $1 AND organization_id = $2",
             workspace_id,
             org_id
         )
@@ -139,6 +142,35 @@ impl OrchestratorWorker {
                 )
                 .execute(&self.pool)
                 .await?;
+
+                // Register route in sozu (degraded-mode: failure doesn't abort the workspace)
+                if let Some(socket) = &self.sozu_socket.clone() {
+                    match self.docker.get_workspace_ip(workspace_id).await {
+                        Ok(ip) => {
+                            match SozuClient::connect(socket, &self.base_domain.clone()) {
+                                Ok(mut client) => {
+                                    if let Err(e) = client.add_workspace_route(
+                                        workspace_id,
+                                        &ws.uid,
+                                        &ip,
+                                        self.workspace_port,
+                                    ) {
+                                        tracing::warn!(workspace_id = %workspace_id, error = %e, "sozu route registration failed");
+                                    } else {
+                                        tracing::info!(workspace_id = %workspace_id, uid = %ws.uid, ip = %ip, "sozu route registered");
+                                    }
+                                }
+                                Err(e) => {
+                                    tracing::warn!(workspace_id = %workspace_id, error = %e, "sozu connect failed");
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(workspace_id = %workspace_id, error = %e, "get workspace IP failed");
+                        }
+                    }
+                }
+
                 tracing::info!(workspace_id = %workspace_id, container_id = %container_id, "workspace running");
             }
             Err(e) => {
@@ -155,7 +187,23 @@ impl OrchestratorWorker {
         Ok(())
     }
 
-    async fn stop_workspace(&mut self, workspace_id: Uuid, _org_id: Uuid) -> anyhow::Result<()> {
+    async fn stop_workspace(&mut self, workspace_id: Uuid, org_id: Uuid) -> anyhow::Result<()> {
+        // Retrieve uid for sozu route removal before stopping
+        let uid = sqlx::query_scalar!(
+            "SELECT uid FROM workspaces WHERE id = $1 AND organization_id = $2",
+            workspace_id,
+            org_id
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        // Get IP before stopping (container is still up)
+        let container_ip = if self.sozu_socket.is_some() {
+            self.docker.get_workspace_ip(workspace_id).await.ok()
+        } else {
+            None
+        };
+
         match self.docker.stop_workspace(workspace_id).await {
             Ok(_) => {
                 sqlx::query!(
@@ -164,6 +212,29 @@ impl OrchestratorWorker {
                 )
                 .execute(&self.pool)
                 .await?;
+
+                // Remove sozu route
+                if let (Some(socket), Some(uid), Some(ip)) =
+                    (&self.sozu_socket.clone(), uid, container_ip)
+                {
+                    match SozuClient::connect(socket, &self.base_domain.clone()) {
+                        Ok(mut client) => {
+                            if let Err(e) = client.remove_workspace_route(
+                                workspace_id,
+                                &uid,
+                                &ip,
+                                self.workspace_port,
+                            ) {
+                                tracing::warn!(workspace_id = %workspace_id, error = %e, "sozu route removal failed");
+                            } else {
+                                tracing::info!(workspace_id = %workspace_id, "sozu route removed");
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(workspace_id = %workspace_id, error = %e, "sozu connect failed");
+                        }
+                    }
+                }
             }
             Err(e) => {
                 tracing::warn!(workspace_id = %workspace_id, error = %e, "stop failed, marking failed");
@@ -179,7 +250,33 @@ impl OrchestratorWorker {
         Ok(())
     }
 
-    async fn delete_workspace(&mut self, workspace_id: Uuid, _org_id: Uuid) -> anyhow::Result<()> {
+    async fn delete_workspace(&mut self, workspace_id: Uuid, org_id: Uuid) -> anyhow::Result<()> {
+        // If workspace was running, attempt sozu cleanup before removal
+        if let Some(socket) = &self.sozu_socket.clone() {
+            let row = sqlx::query!(
+                "SELECT uid, status FROM workspaces WHERE id = $1 AND organization_id = $2",
+                workspace_id,
+                org_id
+            )
+            .fetch_optional(&self.pool)
+            .await?;
+
+            if let Some(ws) = row {
+                if ws.status == "running" {
+                    if let Ok(ip) = self.docker.get_workspace_ip(workspace_id).await {
+                        if let Ok(mut client) = SozuClient::connect(socket, &self.base_domain.clone()) {
+                            let _ = client.remove_workspace_route(
+                                workspace_id,
+                                &ws.uid,
+                                &ip,
+                                self.workspace_port,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
         self.docker.delete_workspace(workspace_id).await?;
         sqlx::query!(
             "DELETE FROM workspaces WHERE id = $1 AND status = 'closed'",

@@ -12,6 +12,8 @@ pub struct OrchestratorConfig {
     pub workspace_image: String,
     pub personal_volume_prefix: String,
     pub sozu_socket: Option<String>,
+    pub base_domain: String,
+    pub workspace_port: u16,
 }
 
 impl OrchestratorConfig {

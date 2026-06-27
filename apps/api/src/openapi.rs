@@ -63,6 +63,7 @@ impl Modify for SecurityAddon {
         workspaces::delete_workspace,
         workspaces::post_workspace_snapshot,
         workspaces::get_workspace_snapshots,
+        workspaces::get_workspace_events,
         // IDE
         ide::get_workspace_files,
         ide::get_workspace_file_content,

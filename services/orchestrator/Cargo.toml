@@ -24,3 +24,6 @@ async-trait = { workspace = true }
 
 # Docker
 bollard = "0.17"
+
+# sozu
+sozu-command-lib = "1"

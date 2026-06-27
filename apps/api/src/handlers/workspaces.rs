@@ -1,11 +1,18 @@
+use std::convert::Infallible;
+use std::time::Duration;
+
 use axum::{
     extract::{Path, Query, State},
-    response::IntoResponse,
+    response::{
+        sse::{Event, KeepAlive, Sse},
+        IntoResponse,
+    },
     Extension, Json,
 };
 use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use tokio_stream::wrappers::ReceiverStream;
 use uuid::Uuid;
 use validator::Validate;
 
@@ -543,7 +550,7 @@ pub async fn post_workspace_snapshot(
     }
 
     let ws = sqlx::query!(
-        "SELECT id, status FROM workspaces WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
+        "SELECT id, status FROM workspaces WHERE id = $1 AND organization_id = $2 AND status != 'closed'",
         workspace_id,
         org.id,
     )
@@ -620,4 +627,65 @@ pub async fn get_workspace_snapshots(
         .collect();
 
     Ok(Json(serde_json::json!({ "data": data })))
+}
+
+// ── GET /organizations/:org_id/workspaces/:workspace_id/events (SSE) ─────────
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/events",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "SSE stream of workspace status events (text/event-stream)"),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
+pub async fn get_workspace_events(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Sse<ReceiverStream<Result<Event, Infallible>>> {
+    let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(8);
+    let pool = state.pool.clone();
+
+    tokio::spawn(async move {
+        let mut last_status = String::new();
+        let mut interval = tokio::time::interval(Duration::from_secs(1));
+
+        loop {
+            interval.tick().await;
+
+            let row = sqlx::query_scalar!(
+                "SELECT status FROM workspaces WHERE id = $1 AND organization_id = $2",
+                workspace_id,
+                org.id,
+            )
+            .fetch_optional(&pool)
+            .await;
+
+            match row {
+                Ok(Some(status)) => {
+                    if status != last_status {
+                        last_status = status.clone();
+                        let data = serde_json::json!({ "status": status }).to_string();
+                        if tx.send(Ok(Event::default().event("status").data(data))).await.is_err() {
+                            break; // client disconnected
+                        }
+                    }
+                }
+                Ok(None) => break, // workspace deleted
+                Err(_) => {
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
+    });
+
+    Sse::new(ReceiverStream::new(rx)).keep_alive(KeepAlive::default())
 }

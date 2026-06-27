@@ -7,3 +7,5 @@ workspace_network: "koda-workspaces"
 workspace_image: "ghcr.io/vincamok/koda/workspace:latest"
 personal_volume_prefix: "koda-personal"
 sozu_socket: null
+base_domain: "localhost"
+workspace_port: 8080

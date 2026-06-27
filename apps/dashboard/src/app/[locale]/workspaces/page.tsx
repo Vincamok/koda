@@ -25,12 +25,14 @@ export default async function WorkspacesPage({
     redirect(`/${locale}/login`)
   }
 
+  const orgId = 'default' // TODO: persist org_id in session
+
   let workspaces: Workspace[] = []
   let nextCursor: string | null = null
   let hasMore = false
 
   try {
-    const page = await listWorkspaces('default', searchParams.cursor)
+    const page = await listWorkspaces(orgId, searchParams.cursor)
     workspaces = page.data
     nextCursor = page.meta.next_cursor
     hasMore = page.meta.has_more
@@ -78,7 +80,7 @@ export default async function WorkspacesPage({
           <>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {workspaces.map((ws) => (
-                <WorkspaceCard key={ws.id} workspace={ws} locale={locale} />
+                <WorkspaceCard key={ws.id} workspace={ws} locale={locale} orgId={orgId} />
               ))}
             </div>
 

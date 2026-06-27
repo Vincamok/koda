@@ -94,6 +94,8 @@ where
         // Workspace snapshots
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", get(workspaces::get_workspace_snapshots))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", post(workspaces::post_workspace_snapshot))
+        // Workspace real-time events (SSE)
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/events", get(workspaces::get_workspace_events))
         .layer(middleware::from_fn_with_state(state.clone(), with_org_context))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

@@ -7,14 +7,15 @@ import { GitBranch, Cpu, HardDrive, ArrowRight } from 'lucide-react'
 import type { Workspace } from '@koda/shared-types'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { WorkspaceStatusBadge } from './workspace-status'
+import { WorkspaceStatusLive } from './workspace-status-live'
 
 interface WorkspaceCardProps {
   workspace: Workspace
   locale: string
+  orgId: string
 }
 
-export function WorkspaceCard({ workspace, locale }: WorkspaceCardProps) {
+export function WorkspaceCard({ workspace, locale, orgId }: WorkspaceCardProps) {
   const t = useTranslations('workspace')
 
   const updatedAt = new Date(workspace.updated_at).toLocaleDateString(locale, {
@@ -35,7 +36,11 @@ export function WorkspaceCard({ workspace, locale }: WorkspaceCardProps) {
               {t('updated_at', { date: updatedAt })}
             </p>
           </div>
-          <WorkspaceStatusBadge status={workspace.status} />
+          <WorkspaceStatusLive
+            workspaceId={workspace.id}
+            orgId={orgId}
+            initialStatus={workspace.status}
+          />
         </div>
 
         {/* Resource info */}

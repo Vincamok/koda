@@ -71,12 +71,12 @@ Créer un workspace, cloner un repo, lancer un container, accéder via URL.
 - [ ] Machine d'états clone : `pending → cloning → ready | failed`
 - [x] Lancement container via bollard + docker-socket-proxy
 - [x] Resource limits obligatoires dans HostConfig (cpu_period, cpu_quota, memory, pids_limit)
-- [ ] Réseaux Docker multi par workspace : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services`
+- [x] Réseaux Docker multi par workspace : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services`
 - [x] Labels `koda.*` obligatoires sur tous les containers
-- [ ] ExposureRule HTTP créée via sozu après démarrage container
-- [ ] SSE : `GET /api/v1/workspaces/:uid/events` (transitions de statut)
+- [x] ExposureRule HTTP créée via sozu après démarrage container
+- [x] SSE : `GET /api/v1/organizations/:org_id/workspaces/:workspace_id/events` (transitions de statut)
 - [x] Dashboard : liste workspaces + formulaire création
-- [ ] Dashboard : statut temps réel (EventSource)
+- [x] Dashboard : statut temps réel (EventSource + `WorkspaceStatusLive`)
 - [ ] Dashboard multi-device : responsive mobile-first, détection breakpoints
 - [x] `WorkspaceVolume` : migration + montage dans HostConfig
 - [x] `WorkspaceShare` : partage ad-hoc (editor|reviewer|viewer), expiration

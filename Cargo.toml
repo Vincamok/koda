@@ -15,7 +15,7 @@ tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
 
 # Web framework
-axum = { version = "0.7", features = ["macros"] }
+axum = { version = "0.7", features = ["macros", "sse"] }
 tower = { version = "0.4", features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "trace", "request-id"] }
 axum-client-ip = "0.5"
