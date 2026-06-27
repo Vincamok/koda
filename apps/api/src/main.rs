@@ -1,6 +1,8 @@
 use std::net::SocketAddr;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+use tower_sessions::{Expiry, SessionManagerLayer};
+use tower_sessions_redis_store::RedisStore;
 use koda_api::{config::AppConfig, db, routes::build_router, AppState};
 
 #[tokio::main]
@@ -25,7 +27,14 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState { pool, config: config.clone(), http };
 
-    let router = build_router(state);
+    // Session store backed by Redis
+    let redis_client = redis::Client::open(config.redis_url.as_str())?;
+    let session_store = RedisStore::new(redis_client);
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false) // set true behind TLS in prod
+        .with_expiry(Expiry::OnSessionEnd);
+
+    let router = build_router(state, session_layer);
 
     let addr: SocketAddr = config.listen_addr.parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;

@@ -1,17 +1,20 @@
 use axum::{
     middleware,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Router,
 };
+use tower_sessions::SessionManagerLayer;
+use tower_sessions_redis_store::RedisStore;
 
 use crate::{
-    handlers::{auth, orgs},
+    handlers::{auth, orgs, personal, user_settings},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::request_id::request_id_layer,
     AppState,
 };
 
-pub fn build_router(state: AppState) -> Router {
+
+pub fn build_router(state: AppState, session_layer: SessionManagerLayer<RedisStore>) -> Router {
     let public = Router::new()
         .route("/api/v1/auth/register", post(auth::post_register))
         .route("/api/v1/auth/login", post(auth::post_login))
@@ -22,6 +25,13 @@ pub fn build_router(state: AppState) -> Router {
     let authenticated = Router::new()
         .route("/api/v1/auth/me", get(auth::get_me))
         .route("/api/v1/organizations", post(orgs::post_organization))
+        .route("/api/v1/personal/space", get(personal::get_personal_space))
+        .route("/api/v1/personal/snippets", get(personal::get_personal_snippets))
+        .route("/api/v1/personal/snippets", post(personal::post_personal_snippet))
+        .route("/api/v1/personal/snippets/:snippet_id", patch(personal::patch_personal_snippet))
+        .route("/api/v1/personal/snippets/:snippet_id", delete(personal::delete_personal_snippet))
+        .route("/api/v1/user/settings", get(user_settings::get_user_settings))
+        .route("/api/v1/user/settings", put(user_settings::put_user_settings))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let org_scoped = Router::new()
@@ -43,6 +53,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(authenticated)
         .merge(org_scoped)
         .merge(admin)
+        .layer(session_layer)
         .layer(middleware::from_fn(request_id_layer))
         .with_state(state)
 }
