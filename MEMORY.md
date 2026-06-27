@@ -29,6 +29,12 @@ Koda est une plateforme de gestion d'environnements de développement à la dema
 | CI/CD | **Harness self-hosted** (mirror GitHub) | GitHub Actions |
 | Registry images | **Harness Artifact Registry** | Docker Hub, GHCR |
 | Déploiement prod | Auto sur merge `main` via Harness pipeline | Manuel |
+| RBAC | **Org + Teams + WorkspaceShare** (3 couches) | ProjectMembership flat |
+| Config service | **`config/default.yaml` par service** + `.env.example` + figment | Config centrale |
+| Réseaux Docker | **Multi-réseau par workspace** (`internal`, `services`, `koda-egress`) | Réseau unique |
+| Espace personnel | **PersonalSpace** (volume Docker personnel par user + fichiers config) | Settings en DB seuls |
+| Sécurité intégrée | **Scans dans CI/CD** + LLM sécurité dédié + SecurityPolicy | Post-prod uniquement |
+| Proxy trust | **`TRUSTED_PROXY_CIDRS`** par service + `axum-client-ip` | Trust aveugle headers |
 
 ## Environnements
 
@@ -73,19 +79,86 @@ Client web natif, différenciateur de la plateforme. Vit dans `apps/web-client/`
   - Propose des patches appliqués en un clic
   - Utilise `AiProviderAdapter` (Anthropic par défaut)
 - **Git panel** — diff, stage, commit, push via Koda API
+- **Panel MCP** — activation/config des connecteurs MCP par workspace
+- **Panel PersonalSpace** — édition des fichiers `.personal/` de l'utilisateur
 
-**Nouveaux endpoints API requis :**
+**Modes selon le device :**
+| Mode | Device détecté | Composants actifs |
+|------|---------------|-------------------|
+| `full-ide` | PC (>1280px, no touch) | Monaco + FileTree + Terminal + AiSidebar + GitPanel + MCP |
+| `tablet-ide` | Tablette paysage | Monaco + AiSidebar + FileTree overlay + sans terminal |
+| `mobile-view` | Mobile / tablette portrait | AiSidebar chat + FileViewer (lecture seule) |
+
+**5 niveaux de prompts IA :**
+
+| Niveau | Déclencheur | Contexte envoyé | Sécurité |
+|--------|-------------|-----------------|----------|
+| 1 — Nano | Frappe auto | ±50 lignes curseur | Filtre secrets |
+| 2 — Quick | Sélection + `⌘K` | Sélection + fichier courant | Filtre credentials |
+| 3 — Standard | Chat sidebar (défaut) | Fichiers ouverts + arbre (noms) | `.env` jamais inclus |
+| 4 — Deep | Bouton "Analyse complète" | Workspace complet + Git + CI + MCP | Rate limited + AuditEvent + confirmation |
+| 5 — Agent | Mode Agent explicite | Workspace + outils (lecture/écriture/exécution) | Confirmation avant chaque action + kill switch + sandbox |
+
+**Règles transversales IA :**
+- `.env`, `*.key`, `*.pem`, secrets résolus → jamais dans aucun prompt
+- Détection prompt injection sur contenus utilisateur (commentaires, docstrings) avant injection LLM
+- Niveaux 4-5 → AuditEvent obligatoire
+- Patches toujours affichés en diff Monaco avant application
+
+**Endpoints API requis :**
 ```
-GET  /api/v1/workspaces/:uid/files?path=/src     # Liste le répertoire
-GET  /api/v1/workspaces/:uid/files/content?path= # Lit un fichier
-PUT  /api/v1/workspaces/:uid/files/content?path= # Écrit un fichier
-POST /api/v1/workspaces/:uid/ai/chat             # Chat IA (SSE streaming)
-GET  /api/v1/workspaces/:uid/ai/chat/:id         # Historique session
+GET  /api/v1/workspaces/:uid/files?path=/src
+GET  /api/v1/workspaces/:uid/files/content?path=
+PUT  /api/v1/workspaces/:uid/files/content?path=
+POST /api/v1/workspaces/:uid/ai/chat             # SSE streaming, body inclut prompt_level
+GET  /api/v1/workspaces/:uid/ai/chat/:id
+GET  /api/v1/mcp/connectors
+POST /api/v1/workspaces/:uid/mcp/bindings
+DELETE /api/v1/workspaces/:uid/mcp/bindings/:bid
+GET  /api/v1/users/me/personal                   # PersonalSpace de l'utilisateur connecté
+PUT  /api/v1/users/me/personal/files/:path       # Édition fichiers personal
+GET  /api/v1/users/me/mcp/bindings               # MCP personnels
 ```
+
+## RBAC — Droits utilisateurs
+
+### Trois couches indépendantes
+
+**Org-level :**
+| Rôle | Droits |
+|------|--------|
+| `owner` | Tout — facturation, suppression org, transfert ownership |
+| `admin` | Membres, teams, quotas, projets — pas facturation |
+| `member` | Utilise la plateforme dans les limites quota |
+
+**Team-level :**
+| Rôle | Droits |
+|------|--------|
+| `lead` | Gère le team, invite, gère les projets du team |
+| `developer` | Crée/gère ses workspaces, push, accès terminal |
+| `reviewer` | Lit workspaces, commente diffs, approuve reviews — pas terminal |
+| `viewer` | Lecture seule — pas de terminal ni écriture |
+
+**Workspace-level (ad-hoc via WorkspaceShare) :**
+`editor` · `reviewer` · `viewer` — durée limitée, hors-org possible
+
+### Hiérarchie
+```
+Organization (tenant, facturation, quotas globaux)
+  └── Team (groupe d'accès, quota propre)
+       └── Project → Workspace
+  └── Member (appartient à l'org, peut être dans 0..n Teams)
+```
+
+### Entités Teams
+- `Team(id, org_id, name, description)`
+- `TeamMembership(team_id, user_id, role, granted_by)`
+- `TeamProjectAccess(team_id, project_id)`
+- `TeamQuota(team_id, max_workspaces, max_cpu, max_ram)` — sous-ensemble du quota org
 
 ## Intégration sozu
 
-Le service `services/gateway/` est un client Rust de sozu via `sozu-command-lib`.  
+Le service `services/gateway/` est un client Rust de sozu via `sozu-command-lib`.
 Il traduit les `ExposureRule` Koda en commandes sozu, sans jamais éditer de config fichier.
 
 **Routes HTTP :**
@@ -101,67 +174,214 @@ Il traduit les `ExposureRule` Koda en commandes sozu, sans jamais éditer de con
 ```
 Plages réservées : SSH `2200-2999`, PostgreSQL `5400-5499`. Stockées dans `ExposureRule.host_port`.
 
-## Entités métier clés
-- `Workspace` : instance identifiée par UID immuable. Statuts : `created → configuring → running → reviewing → closing → closed`
-- `WorkspaceGitConfig` : config Git du workspace (1 actif max), clone_status : `pending → cloning → ready | failed`
-- `WorkspacePluginBinding` : plugin actif déclenchant le provisioning container. Statuts : `installing → ready | failed`
-- `ExposureRule` : mapping route ↔ container. Champs : `protocol (http|tcp)`, `public_path | host_port`, `internal_host`, `internal_port`, `strip_prefix`
-- `WorkspaceVolume` : volume Docker persistant lié au workspace
-- `CiCdPipeline` : pipeline build/lint/security. Statuts : `idle → running → passed | failed`
-- `AutomationTrigger` : déclencheur on_push | schedule | manual
-- `IncomingWebhookEvent` : event webhook entrant stocké (TTL 7j) avant traitement worker
-- `OrganizationQuota` : limites de ressources par organisation
-- `AuditEvent` : traçabilité de toutes les actions critiques
-- `MCPConnectorDefinition` : catalogue des connecteurs MCP disponibles (built-in + custom)
-- `WorkspaceMCPBinding` : connecteur actif dans un workspace avec config + SecretRefs
+## Docker — Réseaux et containers
 
-## Contraintes non-négociables
-- Pas de Docker-in-Docker (DinD)
-- Path Stripping HTTP obligatoire via sozu (l'app ne voit jamais le préfixe /[UID]/)
-- organization_id obligatoire sur toutes les entités exposées (+ RLS PostgreSQL)
-- Aucun secret stocké en clair (SecretRef uniquement)
-- Limites CPU/RAM/PID obligatoires sur chaque conteneur workspace (bollard HostConfig)
-- Opérations fichiers web-client : toujours via Koda API, jamais accès direct au volume
+### Stratégie réseau
 
-## Risques principaux
-1. Socket Docker = vecteur root → mitigé par docker-socket-proxy
-2. WebSocket → sozu supporte HTTP upgrade nativement
-3. TLS → sozu gère la terminaison TLS + renouvellement Let's Encrypt
-4. Absence de health probe par plugin → mécanisme probe défini dans PluginDefinition
-5. Volumes orphelins → garbage collector planifié (worker Rust cron)
-6. LLM sans abstraction → AiProviderAdapter trait dès Phase 0
-7. Accès fichiers web-client non authentifié → middleware auth Axum sur tous les endpoints `/files`
-
-## Arborescence projet
 ```
-apps/
-  dashboard/        # Next.js + TypeScript + shadcn/ui  (admin/gestion)
-  web-client/       # React + Monaco Editor + xterm.js  (IDE in-browser)
-  api/              # Rust — Axum + SQLx + tokio
-services/
-  orchestrator/     # Rust — cycle de vie containers (bollard)
-  worker/           # Rust — Redis Streams consumer (jobs async)
-  git-manager/      # Rust — clone/branches éphémères (git2)
-  gateway/          # Rust — client sozu-command-lib (gestion ExposureRules)
-  mcp-gateway/      # Rust — proxy MCP (trait McpConnector + 5 connecteurs built-in)
-packages/
-  shared-types/     # Types TypeScript partagés (dashboard + web-client)
-  api-client/       # Client TypeScript généré depuis OpenAPI
-  mcp-connectors/   # Définitions + registre des connecteurs MCP (TypeScript)
-infra/
-  docker/           # Dockerfiles + docker-compose.yml
-  harness/          # Pipelines Harness (YAML)
-  migrations/       # sqlx-migrate — fichiers SQL versionnés
-docs/               # Architecture + schémas Mermaid
+koda-platform (bridge, services plateforme)
+  ├── api, orchestrator, worker, git-manager, gateway, mcp-gateway
+  └── sozu  ← seul à router vers les réseaux workspace
+
+koda-ws-<uid>-internal (bridge isolé, pas d'internet)
+  ├── postgres container, redis container, services internes
+
+koda-ws-<uid>-services (bridge workspace)
+  ├── web-app container (aussi sur internal)
+  └── koda-web-ide, code-server
+
+koda-egress (réseau partagé, sortie internet contrôlée)
+  └── containers nécessitant internet (npm install, git clone, pip...)
 ```
 
-## Commandes utiles
-```bash
-sudo docker compose up -d          # Lancer l'environnement de dev
-sqlx migrate run                   # Appliquer les migrations
-cargo test --workspace             # Tests unitaires Rust
-cargo build --release              # Build production
-sozuctl status                     # État du proxy sozu
+sozu accède aux containers workspace via IP Docker directe — pas de réseau commun nécessaire.
+
+### Nommage containers et réseaux
+- Container workspace : `koda-<binding-uid>` (binding-uid = UUID du WorkspacePluginBinding)
+- Internal host dans sozu : `svc-<binding-uid>` (alias réseau)
+- Réseau internal : `koda-ws-<workspace-uid>-internal`
+- Réseau services : `koda-ws-<workspace-uid>-services`
+
+### Labels obligatoires sur tous containers éphémères
+```
+koda.managed=true
+koda.type=workspace|pipeline|plugin
+koda.workspace_id=<uid>
+koda.org_id=<org_id>
+koda.binding_id=<binding_uid>
+```
+Le GC utilise ces labels pour retrouver les containers orphelins même après crash de l'orchestrateur.
+
+### PluginDefinition — réseau requis
+```yaml
+network_policy:
+  networks: [internal, egress]  # quels réseaux attacher
+  expose:
+    - port: 4000
+      protocol: http
+```
+
+### Images Docker
+
+**Services plateforme :**
+- Un `Dockerfile` par service dans son dossier (`services/orchestrator/Dockerfile`)
+- Image builder partagée `koda-rust-base` (layer mis en cache, builds rapides)
+- Multi-stage obligatoire : `builder` (cargo build) → `runtime` (distroless/alpine ≈20 MB)
+- `HEALTHCHECK` obligatoire dans chaque Dockerfile
+
+**Images workspace (pré-buildées) :**
+```
+infra/docker/workspace-images/
+  base/Dockerfile.ubuntu-base     # layer partagé (outils communs, user koda uid=1000, sshd)
+  Dockerfile.ubuntu-node          # Node.js 20/22
+  Dockerfile.ubuntu-python        # Python 3.11/3.12
+  Dockerfile.ubuntu-go            # Go 1.22+
+  Dockerfile.ubuntu-rust          # Rust + cargo
+```
+Pré-warmées par worker cron — jamais de pull à chaud au lancement workspace.
+
+**Sécurité runtime :**
+- User non-root `koda` (uid 1000) dans les images workspace
+- `no-new-privileges` flag dans HostConfig
+- Seccomp profile whitelist syscalls
+- Filesystem read-only (sauf volume workspace monté en rw)
+
+### docker-compose
+```
+infra/docker/
+  docker-compose.yml           # Services plateforme (toujours)
+  docker-compose.override.yml  # Dev : ports exposés, hot-reload (gitignored)
+  docker-compose.prod.yml      # Prod : resource limits, pas de port exposé
+```
+
+## Configuration par service
+
+Chaque service est autonome. Priorité (highest wins) :
+1. Variables d'environnement (prod Harness, Docker `-e`)
+2. `.env` local
+3. `config/default.yaml` — valeurs par défaut
+
+```
+services/orchestrator/
+  config/default.yaml     # valeurs par défaut, commité
+  .env.example            # template vars à surcharger, commité
+  .env                    # overrides locaux, gitignored
+  Dockerfile
+  Cargo.toml
+
+apps/api/
+  config/default.yaml
+  .env.example
+  Dockerfile
+```
+
+Crate Rust : **`figment`** (merge YAML + env + .env, typage fort).
+
+## Services derrière reverse proxy
+
+Chaque service Rust doit :
+- Lire `TRUSTED_PROXY_CIDRS` depuis sa config (ex: `["10.0.0.0/8", "172.16.0.0/12"]`)
+- Extraire l'IP client via `axum-client-ip` (header `X-Forwarded-For` trusté uniquement depuis ces CIDRs)
+- Utiliser `APP_BASE_URL` (config) comme seule source pour les URLs absolues (OAuth, emails, redirects)
+- Ne jamais inférer le proto/host depuis les headers sans validation proxy
+
+## PersonalSpace — espace personnel utilisateur
+
+Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui dans tous ses workspaces.
+
+**Volume Docker** : `koda-personal-<user-uid>` — monté en lecture seule dans chaque workspace à `/home/koda/.personal/`
+
+**Structure des fichiers :**
+```
+.personal/
+├── ai/
+│   ├── CLAUDE.md              # Instructions IA (style, préférences, langue)
+│   ├── context.md             # Background : stack maîtrisé, domaines, expérience
+│   ├── coding-style.md        # Conventions personnelles, patterns préférés/à éviter
+│   ├── review-checklist.md    # Checklist de review envoyée à l'IA avant validation
+│   └── prompts/               # Prompts favoris sauvegardés par niveau
+│       ├── quick.md
+│       ├── standard.md
+│       └── agent.md
+│
+├── editor/
+│   ├── settings.json          # Monaco : font, tab size, word wrap, minimap, rulers
+│   ├── keybindings.json       # Raccourcis personnels
+│   ├── themes-order.json      # Ordre de préférence des skins
+│   └── snippets/              # Snippets par langage
+│       ├── rust.json
+│       ├── typescript.json
+│       ├── python.json
+│       └── sql.json
+│
+├── shell/
+│   ├── .zshrc                 # Config shell principale
+│   ├── .aliases               # Aliases personnels
+│   ├── .functions             # Fonctions shell réutilisables
+│   ├── .exports               # Variables d'env non-secrètes (PATH, EDITOR...)
+│   └── scripts/               # Scripts utilitaires personnels
+│
+├── git/
+│   ├── .gitconfig             # Identité, aliases, signing (SecretRef pour clé GPG)
+│   ├── .gitignore_global      # Patterns ignorés globalement
+│   └── .gitmessage            # Template de message de commit
+│
+├── workspace/
+│   ├── .editorconfig          # Préférences de formatage (fallback si pas de config projet)
+│   ├── env_defaults.json      # Variables injectées dans chaque workspace au démarrage
+│   └── startup.sh             # Script exécuté à chaque ouverture de workspace
+│
+├── notes/
+│   ├── README.md              # Wiki / notes personnelles
+│   ├── bookmarks.md           # Ressources, liens utiles
+│   └── workspace-notes/       # Notes par workspace (non partagées avec l'équipe)
+│       └── <workspace-uid>.md
+│
+└── mcp/
+    └── bindings.json          # Connecteurs MCP personnels (SecretRefs — jamais en clair)
+```
+
+**Fusion avec le workspace :**
+| Fichier | Priorité |
+|---------|----------|
+| `ai/CLAUDE.md` + fichiers ai/ | Workspace + personnel (additifs) |
+| `.editorconfig` | Projet > personnel |
+| `.gitconfig` | Personnel (identité) + `.git/config` projet (remote) |
+| `env_defaults.json` | Personnel injecté, workspace peut surcharger |
+| Snippets editor | Additifs (les deux disponibles) |
+| MCP bindings | Additifs (workspace + personnel) |
+
+**Règle de sécurité :** les fichiers `ai/` du PersonalSpace ne sont jamais loggués ni transmis hors du contexte LLM.
+
+## Sécurité intégrée dans les projets
+
+### Scans CI/CD
+
+| Étape pipeline | Description | Déclencheur |
+|---------------|-------------|-------------|
+| `secret_scan` | Détection credentials dans le code (regex + entropie) | Chaque commit |
+| `sast` | LLM sécurité dédié + règles statiques (OWASP Top 10 par langage) | PR / push |
+| `dependency_scan` | `cargo audit`, `npm audit`, `pip-audit` | Quotidien + PR |
+| `image_scan` | Trivy/Grype sur l'image workspace avant lancement | Build image |
+
+### LLM sécurité dédié
+- Agent séparé du chat IA général, system prompt spécialisé OWASP/CVE
+- Analyse le diff avant la phase de Revue
+- Severity scoring : Critical / High / Medium / Low / Info
+- Fix suggestions avec explication
+- Résultat → `SecurityReport(workspace_id, pipeline_run_id, findings[])`
+
+### Nouvelles entités sécurité
+- `SecurityReport` : workspace_id, pipeline_run_id, triggered_by, score_global
+- `VulnerabilityFinding` : report_id, severity, category, file, line, description, fix_suggestion
+- `SecurityPolicy` : org_id, required_scans[], min_severity_to_block (bloque la Revue si severity atteinte)
+
+### Intégration dans le cycle workspace
+```
+Workspace: reviewing
+  ├── diff review IA (existant)
+  ├── SecurityReport généré automatiquement
+  └── bloqué si SecurityPolicy.min_severity_to_block atteint
 ```
 
 ## Architecture MCP
@@ -169,7 +389,7 @@ sozuctl status                     # État du proxy sozu
 ### Flux d'un tool call MCP depuis le web-client
 ```
 Chat IA (web-client)
-  → POST /api/v1/workspaces/:uid/ai/chat  (message + connecteurs actifs)
+  → POST /api/v1/workspaces/:uid/ai/chat  (message + connecteurs actifs workspace + personnels)
   → API Axum injecte les tool definitions MCP dans le prompt LLM
   → LLM retourne un tool_call { connector_id, tool_name, arguments }
   → API publie dans Redis Stream jobs:mcp
@@ -190,3 +410,111 @@ Chat IA (web-client)
 - Via code : `themeRegistry.register(mySkin)`
 - Via JSON (DB/marketplace) : `themeRegistry.loadManifest(manifest)` avec `extends: 'default'`
 - Via URL : `themeRegistry.loadFromUrl(url)` (marketplace futur)
+
+## Entités métier clés
+- `Organization` : tenant. Statuts : actif | suspended
+- `User` : compte utilisateur. 1 PersonalSpace par User
+- `Membership` : User ↔ Organization, rôle org (owner | admin | member)
+- `Team` : groupe d'accès dans une org
+- `TeamMembership` : User ↔ Team, rôle team (lead | developer | reviewer | viewer)
+- `TeamProjectAccess` : Team ↔ Project
+- `TeamQuota` : limites par team (sous-ensemble OrganizationQuota)
+- `PersonalSpace` : espace personnel 1:1 avec User, lié à un volume Docker
+- `PersonalSnippet` : snippet de code personnel (user_id, language, name, content)
+- `UserMCPBinding` : connecteur MCP personnel (user-scoped, vs WorkspaceMCPBinding workspace-scoped)
+- `Workspace` : instance identifiée par UID immuable. Statuts : `created → configuring → running → reviewing → closing → closed`
+- `WorkspaceGitConfig` : config Git du workspace (1 actif max), clone_status : `pending → cloning → ready | failed`
+- `WorkspacePluginBinding` : plugin actif déclenchant le provisioning container. Statuts : `installing → ready | failed`. UID = identité du container Docker
+- `ExposureRule` : mapping route ↔ container. Champs : `protocol (http|tcp)`, `public_path | host_port`, `internal_host`, `internal_port`, `strip_prefix`
+- `WorkspaceVolume` : volume Docker persistant lié au workspace
+- `WorkspaceShare` : partage ad-hoc workspace, rôle (editor|reviewer|viewer), durée limitée
+- `CiCdPipeline` : pipeline build/lint/security. Statuts : `idle → running → passed | failed`
+- `AutomationTrigger` : déclencheur on_push | schedule | manual
+- `IncomingWebhookEvent` : event webhook entrant stocké (TTL 7j) avant traitement worker
+- `OrganizationQuota` : limites de ressources par organisation
+- `AuditEvent` : traçabilité de toutes les actions critiques
+- `MCPConnectorDefinition` : catalogue des connecteurs MCP disponibles (built-in + custom)
+- `WorkspaceMCPBinding` : connecteur actif dans un workspace avec config + SecretRefs
+- `SecurityReport` : résultat d'un scan sécurité lié à un workspace/pipeline
+- `VulnerabilityFinding` : finding individuel d'un SecurityReport
+- `SecurityPolicy` : politique sécurité par org (scans requis, seuil de blocage)
+
+## Contraintes non-négociables
+- Pas de Docker-in-Docker (DinD)
+- Path Stripping HTTP obligatoire via sozu (l'app ne voit jamais le préfixe /[UID]/)
+- organization_id obligatoire sur toutes les entités exposées (+ RLS PostgreSQL)
+- Aucun secret stocké en clair (SecretRef uniquement) — y compris configs MCP et clés GPG
+- Limites CPU/RAM/PID obligatoires sur chaque conteneur workspace (bollard HostConfig)
+- Opérations fichiers web-client : toujours via Koda API, jamais accès direct au volume
+- Containers workspace : user non-root (uid 1000), no-new-privileges, seccomp profile
+- Headers proxy (`X-Forwarded-*`) : trustés uniquement depuis `TRUSTED_PROXY_CIDRS`
+- Fichiers PersonalSpace `ai/` : jamais loggués ni transmis hors contexte LLM
+
+## Risques principaux
+1. Socket Docker = vecteur root → mitigé par docker-socket-proxy
+2. WebSocket → sozu supporte HTTP upgrade nativement
+3. TLS → sozu gère la terminaison TLS + renouvellement Let's Encrypt
+4. Absence de health probe par plugin → mécanisme probe défini dans PluginDefinition
+5. Volumes orphelins → garbage collector planifié (worker Rust cron)
+6. LLM sans abstraction → AiProviderAdapter trait dès Phase 0
+7. Accès fichiers web-client non authentifié → middleware auth Axum sur tous les endpoints `/files`
+8. IP spoofing via headers proxy → TRUSTED_PROXY_CIDRS validé sur chaque service
+9. Prolifération containers orphelins → labels `koda.*` + GC par labels
+10. PersonalSpace non isolé → volume monté read-only, shell configs jamais en root
+
+## Arborescence projet
+```
+apps/
+  dashboard/        # Next.js + TypeScript + shadcn/ui  (admin/gestion)
+  web-client/       # React + Monaco Editor + xterm.js  (IDE in-browser)
+  api/              # Rust — Axum + SQLx + tokio
+    config/
+      default.yaml
+    .env.example
+services/
+  orchestrator/     # Rust — cycle de vie containers (bollard)
+    config/default.yaml
+    .env.example
+  worker/           # Rust — Redis Streams consumer (jobs async)
+    config/default.yaml
+    .env.example
+  git-manager/      # Rust — clone/branches éphémères (git2)
+    config/default.yaml
+    .env.example
+  gateway/          # Rust — client sozu-command-lib (gestion ExposureRules)
+    config/default.yaml
+    .env.example
+  mcp-gateway/      # Rust — proxy MCP (trait McpConnector + 6 connecteurs built-in)
+    config/default.yaml
+    .env.example
+packages/
+  shared-types/     # Types TypeScript partagés (dashboard + web-client)
+  api-client/       # Client TypeScript généré depuis OpenAPI
+  mcp-connectors/   # Définitions + registre des connecteurs MCP (TypeScript)
+  themes/           # ThemeRegistry + 4 skins + SkinManifest
+infra/
+  docker/
+    docker-compose.yml           # Services plateforme
+    docker-compose.override.yml  # Dev overrides (gitignored)
+    docker-compose.prod.yml      # Prod overrides
+    workspace-images/            # Images workspace pré-buildées
+      base/Dockerfile.ubuntu-base
+      Dockerfile.ubuntu-node
+      Dockerfile.ubuntu-python
+      Dockerfile.ubuntu-go
+      Dockerfile.ubuntu-rust
+  harness/          # Pipelines Harness (YAML)
+  migrations/       # sqlx-migrate — fichiers SQL versionnés
+docs/               # Architecture + schémas Mermaid
+```
+
+## Commandes utiles
+```bash
+sudo docker compose up -d          # Lancer l'environnement de dev
+sqlx migrate run                   # Appliquer les migrations
+cargo test --workspace             # Tests unitaires Rust
+cargo build --release              # Build production
+sozuctl status                     # État du proxy sozu
+docker network ls | grep koda      # Voir les réseaux workspace actifs
+docker ps --filter label=koda.managed=true  # Voir tous les containers workspace
+```

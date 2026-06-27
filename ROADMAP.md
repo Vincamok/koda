@@ -28,15 +28,20 @@ Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy
 - [ ] Monorepo initialisé (`apps/`, `services/`, `packages/`, `infra/`, `docs/`)
 - [ ] Workspace Cargo multi-crates (api, orchestrator, worker, git-manager, gateway)
 - [ ] PostgreSQL + sqlx-migrate : modèles `Organization`, `User`, `Membership`
+- [ ] **Teams** : `Team`, `TeamMembership`, `TeamProjectAccess`, `TeamQuota`
 - [ ] API Axum : endpoints `/api/v1/auth/*` (inscription, connexion, OAuth Google/GitHub)
 - [ ] Sessions cookie HttpOnly + SameSite=Strict
 - [ ] Trait `AiProviderAdapter` + implémentation Anthropic HTTP (reqwest)
 - [ ] sozu en Docker Compose dev avec route de test
 - [ ] Service `gateway/` : client sozu-command-lib minimal (add/remove HttpFrontend)
-- [ ] Dashboard Next.js : skeleton + page login + layout de base
+- [ ] Dashboard Next.js : skeleton + page login + layout de base (responsive mobile-first)
 - [ ] Pipeline Harness : lint → test → build image → push registry
 - [ ] Pipeline Harness prod : déploiement auto sur merge `main`
 - [ ] Système de thèmes : ThemeProvider + 4 skins (default, minimal, pro, light)
+- [ ] Config par service : `config/default.yaml` + `.env.example` dans chaque service
+- [ ] `figment` pour le chargement config (YAML + env + .env)
+- [ ] `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur l'API
+- [ ] `PersonalSpace` : modèle DB + volume Docker `koda-personal-<user-uid>` (fondations)
 
 ### Critères de validation
 - `cargo test --workspace` passe
@@ -59,16 +64,21 @@ Créer un workspace, cloner un repo, lancer un container, accéder via URL.
 - [ ] Machine d'états clone : `pending → cloning → ready | failed`
 - [ ] Lancement container via bollard + docker-socket-proxy
 - [ ] Resource limits obligatoires dans HostConfig (CPU, RAM, PID)
+- [ ] Réseaux Docker multi par workspace : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services`
+- [ ] Labels `koda.*` obligatoires sur tous les containers
 - [ ] ExposureRule HTTP créée via sozu après démarrage container
 - [ ] SSE : `GET /api/v1/workspaces/:uid/events` (transitions de statut)
 - [ ] Dashboard : liste workspaces + statut temps réel (EventSource)
 - [ ] Dashboard : formulaire création workspace (projet + template + git URL)
+- [ ] Dashboard multi-device : responsive mobile-first, détection breakpoints
 - [ ] `WorkspaceVolume` : création, montage, détachement
+- [ ] `WorkspaceShare` : partage ad-hoc (editor|reviewer|viewer), expiration
 
 ### Critères de validation
 - Workspace créé → repo cloné → container lancé → URL `/[UID]/[service]` accessible
 - Statut mis à jour en temps réel dans le dashboard
 - Destruction workspace → volume préservé
+- Dashboard utilisable sur mobile (monitoring, start/stop)
 
 ---
 
@@ -86,8 +96,19 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [ ] Monaco Editor avec `publicPath: 'auto'` (Vite)
   - [ ] File tree + `GET|PUT /api/v1/workspaces/:uid/files/*`
   - [ ] Terminal xterm.js via WebSocket sozu
-  - [ ] Chat IA sidebar (SSE streaming via AiProviderAdapter)
+  - [ ] Chat IA sidebar — **5 niveaux de prompt** (nano, quick, standard, deep, agent)
+  - [ ] Filtre secrets avant envoi IA (pas de `.env`, `*.key` dans le contexte)
+  - [ ] Détection du device → mode `full-ide | tablet-ide | mobile-view`
   - [ ] Git panel (diff, stage, commit, push)
+- [ ] **PersonalSpace complet** :
+  - [ ] Volume Docker `koda-personal-<user-uid>` monté en read-only dans chaque workspace
+  - [ ] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
+  - [ ] Git config personnelle (`~/.personal/git/.gitconfig`) montée dans container
+  - [ ] Panel "Mon espace" dans web-client : édition Monaco de tous les fichiers `.personal/`
+  - [ ] Fusion `ai/CLAUDE.md` personnel + workspace dans le contexte LLM
+  - [ ] `UserMCPBinding` : connecteurs MCP personnels
+  - [ ] Snippets personnels disponibles dans Monaco
+  - [ ] Notes par workspace (`notes/workspace-notes/<uid>.md`)
 - [ ] Diff viewer dans le dashboard (vue Revue, étape 7)
 - [ ] Routes TCP sozu : SSH (`2200-2999`), PostgreSQL (`5400-5499`)
 - [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
@@ -119,19 +140,29 @@ Pipelines de vérification automatisés, webhooks, triggers.
 ### Livrables
 - [ ] Modèles DB : `CiCdPipeline`, `AutomationTrigger`, `IncomingWebhookEvent`
 - [ ] Worker Rust : exécution pipeline dans container isolé éphémère
-- [ ] Types de pipeline : `build`, `lint`, `security_scan`
+- [ ] Types de pipeline : `build`, `lint`, `security_scan`, `dependency_scan`, `image_scan`, `secret_scan`
 - [ ] Branches éphémères pipeline : `pipeline/<uid>/<timestamp>` (git2)
 - [ ] Webhook entrant : vérification HMAC-SHA256 + stockage `IncomingWebhookEvent`
 - [ ] Triggers : `on_push`, `schedule` (cron Rust), `manual`
 - [ ] API : endpoints pipelines + triggers + run
 - [ ] Dashboard : panneau pipelines + historique exécutions
 - [ ] Webhook Inbox par workspace (dashboard)
+- [ ] **Sécurité intégrée dans les projets** :
+  - [ ] `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`
+  - [ ] `secret_scan` : détection credentials dans le code (regex + entropie)
+  - [ ] `sast` : LLM sécurité dédié (OWASP Top 10 par langage, severity scoring)
+  - [ ] `dependency_scan` : cargo audit, npm audit, pip-audit
+  - [ ] `image_scan` : Trivy/Grype sur images workspace avant lancement
+  - [ ] Dashboard : rapport sécurité + findings par workspace
+  - [ ] Blocage phase Revue si `SecurityPolicy.min_severity_to_block` atteint
 - [ ] Pipeline IA : review automatique de diff avant étape Revue
 - [ ] Dead-letter stream : jobs échoués après 3 tentatives
 - [ ] Workspace Activity Feed (dashboard)
 
 ### Critères de validation
 - Push Git → webhook → pipeline déclenché → résultat visible dans dashboard
+- `secret_scan` détecte un token hardcodé dans le code
+- `sast` produit un rapport avec severity avant la Revue
 - Pipeline IA produit un résumé diff avant la revue
 - `schedule` trigger s'exécute à l'heure configurée
 
@@ -143,7 +174,8 @@ Pipelines de vérification automatisés, webhooks, triggers.
 Sécurité renforcée, observabilité, tests E2E, audit.
 
 ### Livrables
-- [ ] RBAC complet : `owner`, `admin`, `developer`, `viewer`
+- [ ] RBAC complet : Teams + rôles (lead | developer | reviewer | viewer) + WorkspaceShare
+- [ ] `SecurityPolicy` org-level : audit des scans requis + seuil de blocage configurable
 - [ ] `AuditEvent` : toutes les actions critiques tracées
 - [ ] RLS PostgreSQL sur tables critiques
 - [ ] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)

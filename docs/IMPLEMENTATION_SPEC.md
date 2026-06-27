@@ -94,6 +94,42 @@
 - `get_workspace_mcp_bindings(uid)` : connecteurs actifs du workspace
 - `post_workspace_mcp_binding(uid)` : active un connecteur (config + SecretRefs), crée `WorkspaceMCPBinding`
 - `delete_workspace_mcp_binding(uid, bid)` : désactive un connecteur, révoque SecretRefs
+- `get_user_mcp_bindings()` : connecteurs MCP personnels de l'utilisateur connecté
+- `post_user_mcp_binding()` : ajoute un connecteur MCP personnel (UserMCPBinding)
+- `delete_user_mcp_binding(bid)` : supprime un connecteur MCP personnel
+
+### `src/handlers/teams.rs`
+- `get_org_teams(oid)` : liste les Teams de l'organisation
+- `post_org_team(oid)` : crée un Team
+- `patch_org_team(oid, tid)` : renomme / modifie description
+- `delete_org_team(oid, tid)` : supprime un Team (vérifie qu'il n'a plus de membres)
+- `get_team_members(oid, tid)` : liste les membres du Team avec leur rôle
+- `post_team_member(oid, tid)` : ajoute un membre au Team avec rôle
+- `patch_team_member(oid, tid, uid)` : change le rôle (lead | developer | reviewer | viewer)
+- `delete_team_member(oid, tid, uid)` : retire un membre
+- `get_team_projects(oid, tid)` : projets accessibles au Team
+- `post_team_project(oid, tid)` : donne accès à un projet
+- `delete_team_project(oid, tid, pid)` : retire l'accès à un projet
+- `get_team_quota(oid, tid)` : retourne `TeamQuota`
+- `put_team_quota(oid, tid)` : configure le quota du Team
+
+### `src/handlers/personal.rs`
+- `get_personal_space()` : retourne le PersonalSpace de l'utilisateur connecté
+- `get_personal_file(path)` : lit un fichier `.personal/<path>`
+- `put_personal_file(path)` : écrit un fichier `.personal/<path>` (crée le volume si absent)
+- `delete_personal_file(path)` : supprime un fichier
+- `get_personal_snippets()` : liste les snippets personnels
+- `post_personal_snippet()` : crée un snippet
+- `patch_personal_snippet(sid)` : modifie un snippet
+- `delete_personal_snippet(sid)` : supprime un snippet
+- `get_workspace_personal_note(uid)` : note personnelle de l'utilisateur sur ce workspace
+- `put_workspace_personal_note(uid)` : crée/met à jour la note
+
+### `src/handlers/security.rs`
+- `get_workspace_security_reports(uid)` : liste les SecurityReport du workspace
+- `get_security_report(uid, rid)` : détail d'un rapport + VulnerabilityFinding[]
+- `get_org_security_policy(oid)` : politique sécurité de l'organisation
+- `put_org_security_policy(oid)` : configure `SecurityPolicy` (owner/admin uniquement)
 
 ### `src/handlers/tickets.rs`
 - `get_workspace_tickets(uid)` : liste `TicketRecord` du workspace
@@ -116,16 +152,19 @@
 - `put_org_quota(oid)` : configure quotas (owner/admin uniquement)
 
 ### `src/models/` — SQLx structs
-- `workspace.rs` : Workspace, WorkspaceGitConfig, WorkspaceVolume, WorkspacePluginBinding
+- `workspace.rs` : Workspace, WorkspaceGitConfig, WorkspaceVolume, WorkspacePluginBinding, WorkspaceShare
 - `plugin.rs` : PluginDefinition, ExposureRule
 - `pipeline.rs` : CiCdPipeline, AutomationTrigger, PipelineRun
-- `user.rs` : User, Organization, Membership, WorkspaceShare
+- `user.rs` : User, Organization, Membership
+- `team.rs` : Team, TeamMembership, TeamProjectAccess, TeamQuota
+- `personal.rs` : PersonalSpace, PersonalSnippet
 - `job.rs` : Job, IncomingWebhookEvent
 - `ticket.rs` : TicketRecord
 - `secret.rs` : SecretRef
 - `audit.rs` : AuditEvent
 - `quota.rs` : OrganizationQuota
-- `mcp.rs` : MCPConnectorDefinition, WorkspaceMCPBinding
+- `mcp.rs` : MCPConnectorDefinition, WorkspaceMCPBinding, UserMCPBinding
+- `security.rs` : SecurityReport, VulnerabilityFinding, SecurityPolicy
 
 ### `src/ai/`
 - `provider.rs` / `trait AiProviderAdapter` : `chat_stream(messages, context) -> Stream<String>`
@@ -165,10 +204,29 @@
 - `check_org_quota(org_id) -> Result<()>` : vérifie `max_concurrent_workspaces`
 - `check_resource_quota(org_id, template) -> Result<()>` : vérifie CPU/RAM cumulé
 
+### `src/network.rs`
+- `create_workspace_networks(ws_uid) -> NetworkIds` : crée `koda-ws-<uid>-internal` + `koda-ws-<uid>-services`
+- `remove_workspace_networks(ws_uid)` : supprime les réseaux du workspace
+- `attach_container_to_networks(container_id, plugin_def)` : attache selon `PluginDefinition.network_policy`
+- `ensure_egress_network()` : crée `koda-egress` s'il n'existe pas (réseau partagé internet)
+- `get_container_ip(container_id, network) -> IpAddr` : IP du container sur un réseau donné
+
+### `src/personal.rs`
+- `ensure_personal_volume(user_uid) -> VolumeName` : crée `koda-personal-<user-uid>` si absent
+- `mount_personal_volume(container_id, user_uid)` : monte le volume en read-only sur `/home/koda/.personal/`
+- `symlink_shell_configs(container_id)` : lie `.personal/shell/.zshrc` → `/home/koda/.zshrc` etc.
+- `symlink_git_config(container_id)` : lie `.personal/git/.gitconfig` → `/home/koda/.gitconfig`
+- `run_startup_script(container_id)` : exécute `.personal/workspace/startup.sh` si présent
+
 ### `src/jobs.rs`
-- `handle_workspace_start(job)` : create_container → start → probe → update ExposureRule → SSE event
+- `handle_workspace_start(job)` :
+  1. `check_org_quota` + `check_team_quota`
+  2. `create_workspace_networks`
+  3. `create_workspace_container` (avec labels `koda.*` obligatoires)
+  4. `mount_personal_volume` + symlinks configs personnelles
+  5. `start` → `probe` → `update ExposureRule` → `SSE event`
 - `handle_workspace_stop(job)` : stop_container → detach_volume → remove ExposureRule
-- `handle_workspace_destroy(job)` : stop → remove_container → archive_volume → cleanup DB
+- `handle_workspace_destroy(job)` : stop → remove_container → `remove_workspace_networks` → archive_volume → cleanup DB
 
 ---
 
@@ -196,6 +254,13 @@
   - Récupère diff Git (git2)
   - Appelle `AiProviderAdapter.chat_stream()` avec diff comme contexte
   - Stocke résumé + risques en DB liés au workspace
+
+### `src/jobs/security.rs`
+- `run_secret_scan(workspace, pipeline_run_id)` : scanne le code (regex patterns + entropie Shannon) → `SecurityReport`
+- `run_sast(workspace, pipeline_run_id)` : appelle LLM sécurité dédié (system prompt OWASP) sur le diff → `VulnerabilityFinding[]`
+- `run_dependency_scan(workspace, pipeline_run_id)` : exécute cargo audit / npm audit / pip-audit dans container isolé
+- `run_image_scan(image_name, pipeline_run_id)` : lance Trivy/Grype sur l'image → findings
+- `check_security_policy(org_id, report_id) -> bool` : vérifie si `SecurityPolicy.min_severity_to_block` est atteint
 
 ### `src/jobs/gc.rs`
 - `collect_orphan_volumes()` : liste volumes Docker sans workspace actif → archive/supprime
@@ -293,6 +358,33 @@
 
 ### `src/components/StatusBar.tsx`
 - `StatusBar` : barre inférieure (branche Git, statut connexion, raccourcis)
+
+### `src/lib/device.ts`
+- `detectDeviceMode() -> 'full-ide' | 'tablet-ide' | 'mobile-view'` : viewport + touch detection
+- `useDeviceMode()` : hook React retournant le mode courant (réactif au resize)
+
+### `src/components/PromptLevelSelector.tsx`
+- `PromptLevelSelector` : sélecteur du niveau de prompt (nano|quick|standard|deep|agent)
+- `usePromptLevel()` : hook stockant le niveau choisi, persisté dans PersonalSpace `editor/settings.json`
+- `AgentConfirmDialog` : modal de confirmation avant chaque action du niveau 5 (écriture fichier, exécution)
+
+### `src/components/PersonalPanel.tsx`
+- `PersonalPanel` : panneau "Mon espace" (icône profil dans la barre latérale)
+- `PersonalFileEditor` : Monaco intégré pour éditer les fichiers `.personal/` (ai/, shell/, git/, editor/, workspace/, notes/)
+- `SnippetsManager` : liste/création/édition des snippets personnels par langage
+- `PersonalMCPList` : connecteurs MCP personnels (UserMCPBinding) actifs sur tous les workspaces
+- `WorkspaceNote` : note markdown personnelle sur le workspace courant (non partagée)
+- `usePersonalSpace()` : hook `GET|PUT /api/v1/users/me/personal/files/*`
+
+### `src/lib/ai-context.ts`
+- `buildAiContext(uid, level, openFiles) -> AiContext` : construit le contexte LLM selon le niveau
+  - Merge `CLAUDE.md` workspace + `.personal/ai/CLAUDE.md` + `.personal/ai/context.md`
+  - Filtre `.env`, `*.key`, `*.pem` avant tout envoi
+  - Niveaux 1-2 : fichier courant uniquement
+  - Niveau 3 : fichiers ouverts + arbre (noms)
+  - Niveaux 4-5 : workspace complet + Git + CI + MCP tools
+- `sanitizeForLlm(content) -> string` : supprime patterns secrets (tokens, clés, mots de passe)
+- `detectPromptInjection(content) -> boolean` : détecte tentatives d'injection dans le contenu utilisateur
 
 ### `src/components/MCPPanel.tsx`
 - `MCPPanel` : panneau liste connecteurs disponibles + bindings actifs du workspace
@@ -492,6 +584,17 @@
 18. `202600010017_secret_refs_create.sql`
 19. `202600010018_audit_events_create.sql`
 20. `202600010019_workspace_shares_create.sql`
-21. `202600010020_mcp_connector_definitions_create.sql`
-22. `202600010021_workspace_mcp_bindings_create.sql`
-23. `202600010022_enable_rls.sql` : activation RLS sur tables critiques
+21. `202600010020_teams_create.sql`
+22. `202600010021_team_memberships_create.sql`
+23. `202600010022_team_project_access_create.sql`
+24. `202600010023_team_quotas_create.sql`
+25. `202600010024_personal_spaces_create.sql`
+26. `202600010025_personal_snippets_create.sql`
+27. `202600010026_workspace_shares_create.sql`
+28. `202600010027_mcp_connector_definitions_create.sql`
+29. `202600010028_workspace_mcp_bindings_create.sql`
+30. `202600010029_user_mcp_bindings_create.sql`
+31. `202600010030_security_policies_create.sql`
+32. `202600010031_security_reports_create.sql`
+33. `202600010032_vulnerability_findings_create.sql`
+34. `202600010033_enable_rls.sql` : activation RLS sur tables critiques

@@ -9,10 +9,13 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 
 1. **UID immuable** : ne jamais modifier l'UID d'un workspace après création. C'est la clé de routage sozu.
 2. **organization_id** : toute requête DB sur une entité métier doit filtrer par `organization_id`. Pas d'exception. Le RLS PostgreSQL est activé en complément.
-3. **Secrets** : ne jamais logger, sérialiser ou stocker un secret en clair. Toujours passer par `SecretRef`.
+3. **Secrets** : ne jamais logger, sérialiser ou stocker un secret en clair. Toujours passer par `SecretRef` — y compris configs MCP, clés GPG PersonalSpace.
 4. **Path Stripping** : les applications dans les containers ne reçoivent jamais le préfixe `/[UID]/`. sozu strip ce préfixe via `StripPrefix` avant transmission.
 5. **Docker socket** : l'orchestrateur ne passe que par `docker-socket-proxy`. Ne jamais utiliser le socket brut.
 6. **Resource limits** : tout conteneur workspace lancé via `bollard` doit avoir `cpu_period`, `cpu_quota`, `memory`, `pids_limit` définis dans `HostConfig`.
+7. **Proxy trust** : les headers `X-Forwarded-*` ne sont trustés que si la requête vient d'une IP dans `TRUSTED_PROXY_CIDRS` (config par service). Jamais de trust aveugle.
+8. **Labels containers** : tout container workspace/pipeline doit avoir les labels `koda.managed`, `koda.type`, `koda.workspace_id`, `koda.org_id`, `koda.binding_id`.
+9. **PersonalSpace sécurité** : les fichiers `ai/` du PersonalSpace ne sont jamais loggués. Le volume personnel est monté read-only dans les workspaces.
 
 ### Conventions de code
 
@@ -27,9 +30,35 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 
 **Workers Rust (Redis Streams)**
 - Consumer groups Redis pour garantie "at-least-once"
-- Timeout par job configurable via `config/platform.config.yaml`
+- Timeout par job configurable via `config/default.yaml` de chaque service
 - Chaque job loggue au format JSON structuré (OpenTelemetry compatible)
 - Un job qui échoue 3 fois est déplacé dans le stream `jobs:dead_letter`
+
+**Configuration par service**
+- Chaque service a son propre `config/default.yaml` (valeurs par défaut, commité)
+- `.env.example` commité dans chaque service, `.env` gitignored
+- Crate `figment` pour le merge YAML + env + .env (priorité : env > .env > yaml)
+- `APP_BASE_URL` obligatoire en config pour les URLs absolues (OAuth callbacks, emails)
+
+**RBAC (Teams)**
+- Vérifier le rôle org (`owner|admin|member`) ET le rôle team (`lead|developer|reviewer|viewer`)
+- Un `reviewer` team ne doit jamais accéder au terminal ni écrire des fichiers
+- `WorkspaceShare` pour les accès ad-hoc — vérifier expiration avant toute action
+- `TeamQuota` vérifié à la création workspace, en plus de `OrganizationQuota`
+
+**Docker — nommage et réseaux**
+- Container workspace : `koda-<binding-uid>` (WorkspacePluginBinding.uid)
+- Network internal : `koda-ws-<workspace-uid>-internal`
+- Network services : `koda-ws-<workspace-uid>-services`
+- Réseau partagé internet : `koda-egress` (uniquement pour containers qui en ont besoin)
+- sozu route vers l'IP Docker directe du container — pas de réseau commun nécessaire
+- Créer les réseaux selon `PluginDefinition.network_policy.networks`
+
+**PersonalSpace**
+- Le volume `koda-personal-<user-uid>` est monté read-only dans chaque workspace
+- Les fichiers `ai/` du PersonalSpace sont fusionnés avec le CLAUDE.md workspace dans le contexte LLM
+- Ne jamais logger le contenu des fichiers PersonalSpace
+- `UserMCPBinding` (personnel) est distinct de `WorkspaceMCPBinding` (workspace)
 
 **Migrations (sqlx-migrate)**
 - Nommage : `YYYYMMDDHHMM_<objet>_<action>.sql` (ex: `202604302245_workspace_add_status_index.sql`)
@@ -92,11 +121,19 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 ```
 Organization → User → Membership
 Organization → OrganizationQuota
+Organization → Team → TeamMembership (→ User)
+Organization → Team → TeamProjectAccess (→ Project)
+Organization → Team → TeamQuota
+Organization → SecurityPolicy
 Organization → Project → Template → Workspace
+User → PersonalSpace → PersonalSnippet
+User → UserMCPBinding (→ MCPConnectorDefinition, → SecretRef)
 Workspace → WorkspaceGitConfig
 Workspace → WorkspaceVolume
 Workspace → WorkspacePluginBinding → ExposureRule
+Workspace → WorkspaceShare (→ User)
 Workspace → CiCdPipeline → AutomationTrigger
+Workspace → CiCdPipeline → SecurityReport → VulnerabilityFinding
 Workspace → IncomingWebhookEvent
 Workspace → TicketRecord
 Workspace → SecretRef
@@ -117,3 +154,9 @@ MCPConnectorDefinition (catalogue — pas de FK workspace)
 - Écrire du code Rust sans types pour les erreurs (`anyhow` pour les binaires, `thiserror` pour les libs)
 - Appeler un connecteur MCP directement depuis l'API (toujours passer par Redis Streams `jobs:mcp`)
 - Stocker en clair les credentials MCP (toujours via SecretRef)
+- Créer un container workspace sans les labels `koda.*` obligatoires
+- Lancer un container workspace sur le réseau `koda-platform` (isolation obligatoire)
+- Monter le volume PersonalSpace en read-write dans un workspace
+- Logger le contenu des fichiers `ai/` du PersonalSpace
+- Truster les headers `X-Forwarded-*` sans vérifier `TRUSTED_PROXY_CIDRS`
+- Utiliser `config/platform.config.yaml` centralisé (chaque service a son propre `config/default.yaml`)
