@@ -12,7 +12,7 @@ use crate::{error::AppError, middleware::auth::AuthUser, AppState};
 
 // ── Create organization ───────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateOrgRequest {
     #[validate(length(min = 1, max = 120))]
     pub name: String,
@@ -24,7 +24,7 @@ lazy_static::lazy_static! {
     static ref SLUG_REGEX: regex::Regex = regex::Regex::new(r"^[a-z0-9-]+$").unwrap();
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct OrgResponse {
     pub id: Uuid,
     pub name: String,
@@ -33,6 +33,17 @@ pub struct OrgResponse {
     pub created_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations",
+    request_body = CreateOrgRequest,
+    responses(
+        (status = 201, description = "Organization created", body = OrgResponse),
+        (status = 409, description = "Slug already taken"),
+    ),
+    tag = "organizations",
+    security(("session" = []))
+)]
 pub async fn post_organization(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -93,6 +104,17 @@ pub async fn post_organization(
 
 // ── Get organization ──────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    responses(
+        (status = 200, description = "Organization details", body = OrgResponse),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "organizations",
+    security(("session" = []))
+)]
 pub async fn get_organization(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -119,7 +141,7 @@ pub async fn get_organization(
 
 // ── List members ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct MemberResponse {
     pub user_id: Uuid,
     pub email: String,
@@ -128,6 +150,16 @@ pub struct MemberResponse {
     pub joined_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/members",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    responses(
+        (status = 200, description = "List of members", body = Vec<MemberResponse>),
+    ),
+    tag = "organizations",
+    security(("session" = []))
+)]
 pub async fn get_org_members(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
@@ -150,13 +182,26 @@ pub async fn get_org_members(
 
 // ── Invite member ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct InviteMemberRequest {
     #[validate(email)]
     pub email: String,
     pub role: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/members",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    request_body = InviteMemberRequest,
+    responses(
+        (status = 200, description = "Member invited"),
+        (status = 403, description = "Insufficient role"),
+        (status = 404, description = "User not found"),
+    ),
+    tag = "organizations",
+    security(("session" = []))
+)]
 pub async fn post_org_member(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -202,11 +247,26 @@ pub async fn post_org_member(
 
 // ── Change member role ────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ChangeRoleRequest {
     pub role: String,
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/v1/organizations/{org_id}/members/{user_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("user_id" = Uuid, Path, description = "User ID"),
+    ),
+    request_body = ChangeRoleRequest,
+    responses(
+        (status = 200, description = "Role updated"),
+        (status = 403, description = "Insufficient role"),
+    ),
+    tag = "organizations",
+    security(("session" = []))
+)]
 pub async fn patch_org_member(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -236,6 +296,20 @@ pub async fn patch_org_member(
 
 // ── Remove member ─────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organizations/{org_id}/members/{user_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("user_id" = Uuid, Path, description = "User ID"),
+    ),
+    responses(
+        (status = 200, description = "Member removed"),
+        (status = 403, description = "Insufficient role"),
+    ),
+    tag = "organizations",
+    security(("session" = []))
+)]
 pub async fn delete_org_member(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

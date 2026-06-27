@@ -12,7 +12,7 @@ use crate::{error::AppError, middleware::auth::AuthUser, AppState};
 
 // ── PersonalSpace ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PersonalSpaceResponse {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -20,6 +20,15 @@ pub struct PersonalSpaceResponse {
     pub created_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/personal/space",
+    responses(
+        (status = 200, description = "Personal space (auto-provisioned)", body = PersonalSpaceResponse),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
 pub async fn get_personal_space(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -64,7 +73,7 @@ pub async fn get_personal_space(
 
 // ── Personal snippets ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SnippetResponse {
     pub id: Uuid,
     pub user_id: Uuid,
@@ -75,6 +84,15 @@ pub struct SnippetResponse {
     pub created_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/personal/snippets",
+    responses(
+        (status = 200, description = "Personal code snippets", body = Vec<SnippetResponse>),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
 pub async fn get_personal_snippets(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -91,7 +109,7 @@ pub async fn get_personal_snippets(
     Ok(Json(serde_json::json!({ "data": snippets })))
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateSnippetRequest {
     #[validate(length(min = 1, max = 60))]
     pub language: String,
@@ -101,6 +119,17 @@ pub struct CreateSnippetRequest {
     pub description: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/personal/snippets",
+    request_body = CreateSnippetRequest,
+    responses(
+        (status = 201, description = "Snippet created", body = SnippetResponse),
+        (status = 422, description = "Validation error"),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
 pub async fn post_personal_snippet(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -129,6 +158,17 @@ pub async fn post_personal_snippet(
     ))
 }
 
+#[utoipa::path(
+    patch,
+    path = "/api/v1/personal/snippets/{snippet_id}",
+    params(("snippet_id" = Uuid, Path, description = "Snippet ID")),
+    responses(
+        (status = 200, description = "Snippet updated"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
 pub async fn patch_personal_snippet(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -162,6 +202,16 @@ pub async fn patch_personal_snippet(
     Ok(Json(serde_json::json!({ "data": null })))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/personal/snippets/{snippet_id}",
+    params(("snippet_id" = Uuid, Path, description = "Snippet ID")),
+    responses(
+        (status = 200, description = "Snippet deleted"),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
 pub async fn delete_personal_snippet(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

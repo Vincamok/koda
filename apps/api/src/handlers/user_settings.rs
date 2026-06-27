@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::{error::AppError, middleware::auth::AuthUser, AppState};
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UserSettingsResponse {
     pub user_id: Uuid,
     pub locale: String,
@@ -13,6 +13,15 @@ pub struct UserSettingsResponse {
     pub updated_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/user/settings",
+    responses(
+        (status = 200, description = "User settings", body = UserSettingsResponse),
+    ),
+    tag = "user",
+    security(("session" = []))
+)]
 pub async fn get_user_settings(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -53,12 +62,23 @@ pub async fn get_user_settings(
     Ok(Json(serde_json::json!({ "data": settings })))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct UpdateUserSettingsRequest {
     pub locale: Option<String>,
     pub theme_id: Option<String>,
 }
 
+#[utoipa::path(
+    put,
+    path = "/api/v1/user/settings",
+    request_body = UpdateUserSettingsRequest,
+    responses(
+        (status = 200, description = "Settings updated", body = UserSettingsResponse),
+        (status = 400, description = "Unsupported locale"),
+    ),
+    tag = "user",
+    security(("session" = []))
+)]
 pub async fn put_user_settings(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

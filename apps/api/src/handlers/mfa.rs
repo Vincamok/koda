@@ -14,12 +14,21 @@ const TOTP_ISSUER: &str = "Koda";
 const TOTP_DIGITS: usize = 6;
 const TOTP_STEP: u64 = 30;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TotpSetupResponse {
     pub provisioning_uri: String,
     pub secret_base32: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/user/mfa/setup",
+    responses(
+        (status = 200, description = "TOTP setup initiated", body = TotpSetupResponse),
+    ),
+    tag = "mfa",
+    security(("session" = []))
+)]
 pub async fn post_mfa_setup(
     State(pool): State<PgPool>,
     Extension(user): Extension<AuthUser>,
@@ -58,17 +67,28 @@ pub async fn post_mfa_setup(
     }))
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct VerifyTotpRequest {
     pub code: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TotpStatusResponse {
     pub enabled: bool,
     pub verified: bool,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/user/mfa/verify",
+    request_body = VerifyTotpRequest,
+    responses(
+        (status = 200, description = "TOTP verified and enabled", body = TotpStatusResponse),
+        (status = 422, description = "Invalid or expired code"),
+    ),
+    tag = "mfa",
+    security(("session" = []))
+)]
 pub async fn post_mfa_verify(
     State(pool): State<PgPool>,
     Extension(user): Extension<AuthUser>,
@@ -138,6 +158,15 @@ pub async fn post_mfa_verify(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/user/mfa/status",
+    responses(
+        (status = 200, description = "MFA status", body = TotpStatusResponse),
+    ),
+    tag = "mfa",
+    security(("session" = []))
+)]
 pub async fn get_mfa_status(
     State(pool): State<PgPool>,
     Extension(user): Extension<AuthUser>,
@@ -155,6 +184,17 @@ pub async fn get_mfa_status(
     }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/user/mfa",
+    request_body = VerifyTotpRequest,
+    responses(
+        (status = 204, description = "MFA disabled"),
+        (status = 422, description = "Invalid code"),
+    ),
+    tag = "mfa",
+    security(("session" = []))
+)]
 pub async fn delete_mfa(
     State(pool): State<PgPool>,
     Extension(user): Extension<AuthUser>,

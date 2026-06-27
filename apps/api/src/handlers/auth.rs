@@ -18,7 +18,7 @@ use crate::{
 
 // ── Register ──────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct RegisterRequest {
     #[validate(email)]
     pub email: String,
@@ -28,7 +28,7 @@ pub struct RegisterRequest {
     pub display_name: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct UserResponse {
     pub id: Uuid,
     pub email: String,
@@ -37,6 +37,17 @@ pub struct UserResponse {
     pub created_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/register",
+    request_body = RegisterRequest,
+    responses(
+        (status = 200, description = "User registered", body = UserResponse),
+        (status = 409, description = "Email already registered"),
+        (status = 422, description = "Validation error"),
+    ),
+    tag = "auth"
+)]
 pub async fn post_register(
     State(state): State<AppState>,
     session: Session,
@@ -96,13 +107,23 @@ pub async fn post_register(
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct LoginRequest {
     #[validate(email)]
     pub email: String,
     pub password: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/login",
+    request_body = LoginRequest,
+    responses(
+        (status = 200, description = "Logged in", body = UserResponse),
+        (status = 401, description = "Invalid credentials"),
+    ),
+    tag = "auth"
+)]
 pub async fn post_login(
     State(state): State<AppState>,
     session: Session,
@@ -136,6 +157,14 @@ pub async fn post_login(
 
 // ── Logout ────────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/auth/logout",
+    responses(
+        (status = 200, description = "Logged out"),
+    ),
+    tag = "auth"
+)]
 pub async fn post_logout(session: Session) -> Result<impl IntoResponse, AppError> {
     clear_session(&session).await?;
     Ok(Json(serde_json::json!({ "data": null })))
@@ -143,6 +172,16 @@ pub async fn post_logout(session: Session) -> Result<impl IntoResponse, AppError
 
 // ── Get me ────────────────────────────────────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/auth/me",
+    responses(
+        (status = 200, description = "Current user", body = UserResponse),
+        (status = 401, description = "Unauthenticated"),
+    ),
+    tag = "auth",
+    security(("session" = []))
+)]
 pub async fn get_me(
     Extension(auth): Extension<AuthUser>,
     State(state): State<AppState>,

@@ -19,7 +19,7 @@ use crate::{
 
 // ── File browser ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct FileNode {
     pub name: String,
     pub path: String,
@@ -29,6 +29,20 @@ pub struct FileNode {
     pub children: Option<Vec<FileNode>>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/files",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "File tree", body = Vec<FileNode>),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tag = "ide",
+    security(("session" = []))
+)]
 pub async fn get_workspace_files(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -65,6 +79,21 @@ pub async fn get_workspace_files(
     Ok(Json(json!({ "data": placeholder })))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/files/{file_path}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("file_path" = String, Path, description = "Path to file within workspace"),
+    ),
+    responses(
+        (status = 200, description = "File content"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "ide",
+    security(("session" = []))
+)]
 pub async fn get_workspace_file_content(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
@@ -91,18 +120,33 @@ pub async fn get_workspace_file_content(
 
 // ── AI Chat SSE ───────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AiChatRequest {
     pub message: String,
     pub context: Option<AiChatContext>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AiChatContext {
     pub file_path: Option<String>,
     pub file_content: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/ai/chat",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    request_body = AiChatRequest,
+    responses(
+        (status = 200, description = "SSE stream of AI response chunks"),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tag = "ide",
+    security(("session" = []))
+)]
 pub async fn post_workspace_ai_chat(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,

@@ -14,13 +14,13 @@ use crate::{
 
 // ── Teams ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateTeamRequest {
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TeamResponse {
     pub id: Uuid,
     pub organization_id: Uuid,
@@ -36,6 +36,18 @@ pub struct PaginationQuery {
     pub offset: Option<i64>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/teams",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    request_body = CreateTeamRequest,
+    responses(
+        (status = 200, description = "Team created", body = TeamResponse),
+        (status = 409, description = "Team name already taken"),
+    ),
+    tag = "teams",
+    security(("session" = []))
+)]
 pub async fn post_team(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -92,6 +104,16 @@ pub async fn post_team(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/teams",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    responses(
+        (status = 200, description = "List of teams", body = Vec<TeamResponse>),
+    ),
+    tag = "teams",
+    security(("session" = []))
+)]
 pub async fn get_teams(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -131,6 +153,20 @@ pub async fn get_teams(
     ))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organizations/{org_id}/teams/{team_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("team_id" = Uuid, Path, description = "Team ID"),
+    ),
+    responses(
+        (status = 204, description = "Team deleted"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "teams",
+    security(("session" = []))
+)]
 pub async fn delete_team(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -170,13 +206,13 @@ pub async fn delete_team(
 
 // ── Team Memberships ──────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct AddMemberRequest {
     pub user_id: Uuid,
     pub role: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TeamMemberResponse {
     pub id: Uuid,
     pub team_id: Uuid,
@@ -187,6 +223,21 @@ pub struct TeamMemberResponse {
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/teams/{team_id}/members",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("team_id" = Uuid, Path, description = "Team ID"),
+    ),
+    request_body = AddMemberRequest,
+    responses(
+        (status = 200, description = "Member added", body = TeamMemberResponse),
+        (status = 422, description = "Invalid role or non-member"),
+    ),
+    tag = "teams",
+    security(("session" = []))
+)]
 pub async fn post_team_member(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -261,6 +312,20 @@ pub async fn post_team_member(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/teams/{team_id}/members",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("team_id" = Uuid, Path, description = "Team ID"),
+    ),
+    responses(
+        (status = 200, description = "Team members", body = Vec<TeamMemberResponse>),
+        (status = 404, description = "Team not found"),
+    ),
+    tag = "teams",
+    security(("session" = []))
+)]
 pub async fn get_team_members(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -303,6 +368,21 @@ pub async fn get_team_members(
     ))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organizations/{org_id}/teams/{team_id}/members/{user_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("team_id" = Uuid, Path, description = "Team ID"),
+        ("user_id" = Uuid, Path, description = "User ID"),
+    ),
+    responses(
+        (status = 204, description = "Member removed"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "teams",
+    security(("session" = []))
+)]
 pub async fn delete_team_member(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -343,13 +423,13 @@ pub async fn delete_team_member(
 
 // ── Workspace Shares ──────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct ShareWorkspaceRequest {
     pub user_id: Uuid,
     pub role: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct WorkspaceShareResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -359,6 +439,21 @@ pub struct WorkspaceShareResponse {
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/shares",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    request_body = ShareWorkspaceRequest,
+    responses(
+        (status = 200, description = "Workspace shared", body = WorkspaceShareResponse),
+        (status = 422, description = "Invalid role"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn post_workspace_share(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,

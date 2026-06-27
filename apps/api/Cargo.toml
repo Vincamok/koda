@@ -56,3 +56,5 @@ opentelemetry_sdk = { workspace = true }
 tracing-opentelemetry = { workspace = true }
 sentry = { workspace = true }
 sentry-tower = { workspace = true }
+utoipa = { workspace = true }
+utoipa-swagger-ui = { workspace = true }

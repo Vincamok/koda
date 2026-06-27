@@ -15,14 +15,14 @@ use crate::{
 const TOKEN_PREFIX_LEN: usize = 8;
 const TOKEN_SECRET_LEN: usize = 32;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateTokenRequest {
     pub name: String,
     pub scopes: Vec<String>,
     pub expires_in_days: Option<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct CreateTokenResponse {
     pub id: Uuid,
     pub name: String,
@@ -33,7 +33,7 @@ pub struct CreateTokenResponse {
     pub created_at: time::OffsetDateTime,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TokenListResponse {
     pub id: Uuid,
     pub name: String,
@@ -45,6 +45,18 @@ pub struct TokenListResponse {
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/tokens",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    request_body = CreateTokenRequest,
+    responses(
+        (status = 200, description = "Token created — secret shown only once", body = CreateTokenResponse),
+        (status = 422, description = "Invalid scope"),
+    ),
+    tag = "tokens",
+    security(("session" = []))
+)]
 pub async fn post_token(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -114,6 +126,16 @@ pub async fn post_token(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/tokens",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    responses(
+        (status = 200, description = "List of M2M tokens", body = Vec<TokenListResponse>),
+    ),
+    tag = "tokens",
+    security(("session" = []))
+)]
 pub async fn get_tokens(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -145,6 +167,20 @@ pub async fn get_tokens(
     ))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organizations/{org_id}/tokens/{token_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("token_id" = Uuid, Path, description = "Token ID"),
+    ),
+    responses(
+        (status = 204, description = "Token revoked"),
+        (status = 404, description = "Not found or already revoked"),
+    ),
+    tag = "tokens",
+    security(("session" = []))
+)]
 pub async fn delete_token(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,

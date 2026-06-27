@@ -4,11 +4,14 @@ use axum::{
     Router,
 };
 use tower_sessions::{session_store::SessionStore, SessionManagerLayer};
+use utoipa::OpenApi;
+use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     handlers::{admin, auth, ide, mfa, orgs, personal, pipelines, teams, tokens, user_settings, workspaces},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::request_id::request_id_layer,
+    openapi::ApiDoc,
     AppState,
 };
 
@@ -104,7 +107,11 @@ where
         .layer(middleware::from_fn(require_super_admin))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
+    let swagger = SwaggerUi::new("/swagger-ui")
+        .url("/api-docs/openapi.json", ApiDoc::openapi());
+
     Router::new()
+        .merge(swagger)
         .merge(public)
         .merge(authenticated)
         .merge(org_scoped)

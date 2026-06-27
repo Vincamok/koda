@@ -21,7 +21,7 @@ pub struct PaginationQuery {
 
 // ── Admin: Organizations ──────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AdminOrgResponse {
     pub id: Uuid,
     pub name: String,
@@ -32,6 +32,15 @@ pub struct AdminOrgResponse {
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/organizations",
+    responses(
+        (status = 200, description = "All organizations", body = Vec<AdminOrgResponse>),
+    ),
+    tag = "admin",
+    security(("session" = []))
+)]
 pub async fn admin_list_orgs(
     State(pool): State<PgPool>,
     Query(q): Query<PaginationQuery>,
@@ -72,6 +81,17 @@ pub async fn admin_list_orgs(
     ))
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/organizations/{org_id}/toggle",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    responses(
+        (status = 204, description = "Status toggled"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "admin",
+    security(("session" = []))
+)]
 pub async fn admin_toggle_org(
     State(pool): State<PgPool>,
     Extension(admin): Extension<AuthUser>,
@@ -114,7 +134,7 @@ pub async fn admin_toggle_org(
 
 // ── Admin: Users ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AdminUserResponse {
     pub id: Uuid,
     pub email: String,
@@ -125,6 +145,15 @@ pub struct AdminUserResponse {
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/users",
+    responses(
+        (status = 200, description = "All users", body = Vec<AdminUserResponse>),
+    ),
+    tag = "admin",
+    security(("session" = []))
+)]
 pub async fn admin_list_users(
     State(pool): State<PgPool>,
     Query(q): Query<PaginationQuery>,
@@ -165,13 +194,24 @@ pub async fn admin_list_users(
 
 // ── Admin: Impersonation ──────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct ImpersonateResponse {
     pub impersonation_token: String,
     pub user_id: Uuid,
     pub expires_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/admin/users/{user_id}/impersonate",
+    params(("user_id" = Uuid, Path, description = "User to impersonate")),
+    responses(
+        (status = 200, description = "Impersonation token issued", body = ImpersonateResponse),
+        (status = 404, description = "User not found"),
+    ),
+    tag = "admin",
+    security(("session" = []))
+)]
 pub async fn admin_impersonate(
     State(pool): State<PgPool>,
     Extension(admin): Extension<AuthUser>,
@@ -225,7 +265,7 @@ pub async fn admin_impersonate(
 
 // ── Admin: Audit Logs ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct AuditEventResponse {
     pub id: Uuid,
     pub actor_id: Option<Uuid>,
@@ -234,11 +274,21 @@ pub struct AuditEventResponse {
     pub action: String,
     pub resource_type: Option<String>,
     pub resource_id: Option<String>,
+    #[schema(value_type = Object)]
     pub metadata: serde_json::Value,
     pub ip_address: Option<String>,
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/audit-logs",
+    responses(
+        (status = 200, description = "Audit log", body = Vec<AuditEventResponse>),
+    ),
+    tag = "admin",
+    security(("session" = []))
+)]
 pub async fn admin_audit_logs(
     State(pool): State<PgPool>,
     Query(q): Query<PaginationQuery>,
@@ -280,7 +330,7 @@ pub async fn admin_audit_logs(
 
 // ── Admin: Infrastructure ─────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct InfraStatsResponse {
     pub total_orgs: i64,
     pub total_users: i64,
@@ -290,6 +340,15 @@ pub struct InfraStatsResponse {
     pub failed_jobs: i64,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/admin/stats",
+    responses(
+        (status = 200, description = "Infrastructure statistics", body = InfraStatsResponse),
+    ),
+    tag = "admin",
+    security(("session" = []))
+)]
 pub async fn admin_infra_stats(
     State(pool): State<PgPool>,
 ) -> Result<Json<InfraStatsResponse>, AppError> {

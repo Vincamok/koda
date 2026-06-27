@@ -87,3 +87,7 @@ tracing-opentelemetry = "0.23"
 # Sentry
 sentry = { version = "0.34", features = ["tracing"] }
 sentry-tower = { version = "0.34", features = ["http"] }
+
+# OpenAPI
+utoipa = { version = "4", features = ["axum_extras", "uuid", "time"] }
+utoipa-swagger-ui = { version = "7", features = ["axum"] }

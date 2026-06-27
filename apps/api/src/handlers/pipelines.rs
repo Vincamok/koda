@@ -15,14 +15,15 @@ use crate::{
 
 // ── Pipeline CRUD ────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreatePipelineRequest {
     pub name: String,
     pub pipeline_type: String,
+    #[schema(value_type = Object)]
     pub config: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct PipelineResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -30,6 +31,7 @@ pub struct PipelineResponse {
     pub name: String,
     pub pipeline_type: String,
     pub status: String,
+    #[schema(value_type = Object)]
     pub config: serde_json::Value,
     pub last_run_at: Option<time::OffsetDateTime>,
     pub created_at: time::OffsetDateTime,
@@ -41,6 +43,21 @@ pub struct PaginationQuery {
     pub offset: Option<i64>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/pipelines",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    request_body = CreatePipelineRequest,
+    responses(
+        (status = 200, description = "Pipeline created", body = PipelineResponse),
+        (status = 422, description = "Invalid pipeline type"),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn post_pipeline(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -84,6 +101,19 @@ pub async fn post_pipeline(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/pipelines",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "List of pipelines", body = Vec<PipelineResponse>),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn get_pipelines(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -125,6 +155,21 @@ pub async fn get_pipelines(
     ))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/pipelines/{pipeline_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("pipeline_id" = Uuid, Path, description = "Pipeline ID"),
+    ),
+    responses(
+        (status = 200, description = "Pipeline details", body = PipelineResponse),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn get_pipeline(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -156,6 +201,21 @@ pub async fn get_pipeline(
     }))
 }
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/pipelines/{pipeline_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("pipeline_id" = Uuid, Path, description = "Pipeline ID"),
+    ),
+    responses(
+        (status = 204, description = "Pipeline deleted"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn delete_pipeline(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -180,13 +240,29 @@ pub async fn delete_pipeline(
 
 // ── Run Pipeline ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct RunResponse {
     pub job_id: Uuid,
     pub pipeline_id: Uuid,
     pub status: String,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/pipelines/{pipeline_id}/run",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("pipeline_id" = Uuid, Path, description = "Pipeline ID"),
+    ),
+    responses(
+        (status = 200, description = "Run enqueued", body = RunResponse),
+        (status = 409, description = "Pipeline already running"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn post_pipeline_run(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -244,14 +320,14 @@ pub async fn post_pipeline_run(
 
 // ── Automation Triggers ───────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateTriggerRequest {
     pub pipeline_id: Uuid,
     pub trigger_type: String,
     pub schedule_cron: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct TriggerResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -262,6 +338,21 @@ pub struct TriggerResponse {
     pub created_at: time::OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/triggers",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    request_body = CreateTriggerRequest,
+    responses(
+        (status = 200, description = "Trigger created", body = TriggerResponse),
+        (status = 422, description = "Validation error"),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn post_trigger(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -319,6 +410,19 @@ pub async fn post_trigger(
     }))
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/triggers",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "List of triggers", body = Vec<TriggerResponse>),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
 pub async fn get_triggers(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -354,7 +458,7 @@ pub async fn get_triggers(
 
 // ── Incoming Webhooks ─────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct WebhookEventResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -363,6 +467,16 @@ pub struct WebhookEventResponse {
     pub source_ip: Option<String>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/webhooks/{workspace_id}",
+    params(("workspace_id" = Uuid, Path, description = "Workspace ID")),
+    responses(
+        (status = 200, description = "Webhook received", body = WebhookEventResponse),
+        (status = 404, description = "Workspace not found"),
+    ),
+    tag = "webhooks"
+)]
 pub async fn post_webhook(
     State(pool): State<PgPool>,
     Path(workspace_id): Path<Uuid>,
@@ -500,6 +614,19 @@ async fn enqueue_push_pipelines(
     Ok(())
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/webhook-events",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Webhook event inbox", body = Vec<WebhookEventResponse>),
+    ),
+    tag = "webhooks",
+    security(("session" = []))
+)]
 pub async fn get_webhook_events(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,
@@ -547,7 +674,7 @@ pub async fn get_webhook_events(
 
 // ── Security Reports ──────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SecurityReportResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -560,7 +687,7 @@ pub struct SecurityReportResponse {
     pub findings: Vec<VulnerabilityFindingResponse>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct VulnerabilityFindingResponse {
     pub id: Uuid,
     pub title: String,
@@ -573,6 +700,19 @@ pub struct VulnerabilityFindingResponse {
     pub remediation: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/security-reports",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Security scan reports", body = Vec<SecurityReportResponse>),
+    ),
+    tag = "security",
+    security(("session" = []))
+)]
 pub async fn get_security_reports(
     State(pool): State<PgPool>,
     Extension(org): Extension<OrgContext>,

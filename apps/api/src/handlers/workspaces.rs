@@ -18,7 +18,7 @@ use crate::{
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct WorkspaceResponse {
     pub id: Uuid,
     pub uid: String,
@@ -34,7 +34,7 @@ pub struct WorkspaceResponse {
     pub updated_at: OffsetDateTime,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct CreateWorkspaceRequest {
     #[validate(length(min = 1, max = 120))]
     pub name: String,
@@ -45,7 +45,7 @@ pub struct CreateWorkspaceRequest {
     pub git: Option<GitConfigRequest>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, utoipa::ToSchema)]
 pub struct GitConfigRequest {
     #[validate(length(min = 1))]
     pub repo_url: String,
@@ -82,6 +82,19 @@ async fn publish_job(redis: &mut redis::aio::MultiplexedConnection, stream: &str
 
 // ── POST /organizations/:org_id/workspaces ────────────────────────────────────
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    request_body = CreateWorkspaceRequest,
+    responses(
+        (status = 201, description = "Workspace created", body = WorkspaceResponse),
+        (status = 403, description = "Insufficient role"),
+        (status = 429, description = "Workspace quota exceeded"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn post_workspace(
     State(mut state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -205,6 +218,16 @@ pub async fn post_workspace(
 
 // ── GET /organizations/:org_id/workspaces ─────────────────────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces",
+    params(("org_id" = Uuid, Path, description = "Organization ID")),
+    responses(
+        (status = 200, description = "List of workspaces", body = Vec<WorkspaceResponse>),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn get_workspaces(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
@@ -255,6 +278,20 @@ pub async fn get_workspaces(
 
 // ── GET /organizations/:org_id/workspaces/:workspace_id ───────────────────────
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Workspace details", body = WorkspaceResponse),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn get_workspace(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
@@ -291,6 +328,21 @@ pub async fn get_workspace(
 
 // ── POST /organizations/:org_id/workspaces/:workspace_id/start ─────────────────
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/start",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Start enqueued"),
+        (status = 400, description = "Invalid state transition"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn post_workspace_start(
     State(mut state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -332,6 +384,21 @@ pub async fn post_workspace_start(
 
 // ── POST /organizations/:org_id/workspaces/:workspace_id/stop ─────────────────
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/stop",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Stop enqueued"),
+        (status = 400, description = "Workspace not running"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn post_workspace_stop(
     State(mut state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -373,6 +440,22 @@ pub async fn post_workspace_stop(
 
 // ── DELETE /organizations/:org_id/workspaces/:workspace_id ───────────────────
 
+#[utoipa::path(
+    delete,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Workspace deleted"),
+        (status = 400, description = "Must stop before deleting"),
+        (status = 403, description = "Insufficient role"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn delete_workspace(
     State(mut state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -416,12 +499,12 @@ pub async fn delete_workspace(
 
 // ── Workspace Snapshots ────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
 pub struct CreateSnapshotRequest {
     pub label: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, utoipa::ToSchema)]
 pub struct SnapshotResponse {
     pub id: Uuid,
     pub workspace_id: Uuid,
@@ -431,6 +514,22 @@ pub struct SnapshotResponse {
     pub created_at: OffsetDateTime,
 }
 
+#[utoipa::path(
+    post,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/snapshots",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    request_body = CreateSnapshotRequest,
+    responses(
+        (status = 201, description = "Snapshot initiated"),
+        (status = 400, description = "Workspace must be running or stopped"),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn post_workspace_snapshot(
     State(state): State<AppState>,
     Extension(auth): Extension<AuthUser>,
@@ -477,6 +576,19 @@ pub async fn post_workspace_snapshot(
     Ok(axum::http::StatusCode::CREATED.into_response())
 }
 
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/snapshots",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "List of snapshots", body = Vec<SnapshotResponse>),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
 pub async fn get_workspace_snapshots(
     State(state): State<AppState>,
     Extension(_auth): Extension<AuthUser>,
