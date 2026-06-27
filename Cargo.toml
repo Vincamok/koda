@@ -77,3 +77,13 @@ totp-rs = { version = "5", features = ["qr"] }
 sha2 = "0.10"
 hmac = "0.12"
 hex = "0.4"
+
+# OpenTelemetry
+opentelemetry = { version = "0.22", features = ["trace"] }
+opentelemetry-otlp = { version = "0.15", features = ["trace", "http-proto", "reqwest-client"] }
+opentelemetry_sdk = { version = "0.22", features = ["rt-tokio"] }
+tracing-opentelemetry = "0.23"
+
+# Sentry
+sentry = { version = "0.34", features = ["tracing"] }
+sentry-tower = { version = "0.34", features = ["http"] }

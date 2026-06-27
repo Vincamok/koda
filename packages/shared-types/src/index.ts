@@ -245,6 +245,53 @@ export interface AuditEvent {
   created_at: string
 }
 
+// ── CI/CD Pipelines ───────────────────────────────────────────────────────────
+
+export type PipelineType = 'build' | 'lint' | 'secret_scan' | 'sast' | 'dependency_scan' | 'image_scan'
+export type PipelineStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+export type TriggerType = 'on_push' | 'schedule' | 'manual'
+
+export interface Pipeline {
+  id: string
+  workspace_id: string
+  organization_id: string
+  name: string
+  pipeline_type: PipelineType
+  config: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PipelineRun {
+  id: string
+  pipeline_id: string
+  workspace_id: string
+  organization_id: string
+  status: PipelineStatus
+  triggered_by: TriggerType
+  started_at: string | null
+  finished_at: string | null
+  created_at: string
+}
+
+export interface AutomationTrigger {
+  id: string
+  workspace_id: string
+  pipeline_id: string
+  trigger_type: TriggerType
+  schedule_cron: string | null
+  is_active: boolean
+  created_at: string
+}
+
+export interface IncomingWebhookEvent {
+  id: string
+  workspace_id: string
+  hmac_valid: boolean
+  received_at: string
+  source_ip: string | null
+}
+
 // ── Multi-instance ────────────────────────────────────────────────────────────
 
 export interface KodaInstance {

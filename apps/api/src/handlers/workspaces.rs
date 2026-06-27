@@ -413,3 +413,99 @@ pub async fn delete_workspace(
 
     Ok(Json(serde_json::json!({ "data": null })))
 }
+
+// ── Workspace Snapshots ────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSnapshotRequest {
+    pub label: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SnapshotResponse {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub label: String,
+    pub status: String,
+    pub size_bytes: Option<i64>,
+    pub created_at: OffsetDateTime,
+}
+
+pub async fn post_workspace_snapshot(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<CreateSnapshotRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let caller_role = auth.org_role.as_deref().unwrap_or("");
+    if !["owner", "admin", "member", "super_admin"].contains(&caller_role) {
+        return Err(AppError::Forbidden("insufficient role".into()));
+    }
+
+    let ws = sqlx::query!(
+        "SELECT id, status FROM workspaces WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if ws.status != "running" && ws.status != "stopped" {
+        return Err(AppError::BadRequest(
+            "workspace must be running or stopped to snapshot".into(),
+        ));
+    }
+
+    let snapshot_path = format!("/var/lib/koda/snapshots/{}/{}", org.id, workspace_id);
+
+    sqlx::query!(
+        r#"INSERT INTO workspace_snapshots
+               (workspace_id, organization_id, created_by, label, volume_snapshot_path, status)
+           VALUES ($1, $2, $3, $4, $5, 'pending')"#,
+        workspace_id,
+        org.id,
+        auth.id,
+        body.label,
+        snapshot_path,
+    )
+    .execute(&state.pool)
+    .await?;
+
+    // Background orchestrator task will copy the volume and update status → ready.
+    Ok(axum::http::StatusCode::CREATED.into_response())
+}
+
+pub async fn get_workspace_snapshots(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    let rows = sqlx::query!(
+        r#"SELECT id, workspace_id, label, status, size_bytes, created_at
+           FROM workspace_snapshots
+           WHERE workspace_id = $1 AND organization_id = $2 AND status != 'deleted'
+           ORDER BY created_at DESC
+           LIMIT 20"#,
+        workspace_id,
+        org.id,
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    let data: Vec<SnapshotResponse> = rows
+        .into_iter()
+        .map(|r| SnapshotResponse {
+            id: r.id,
+            workspace_id: r.workspace_id,
+            label: r.label,
+            status: r.status,
+            size_bytes: r.size_bytes,
+            created_at: r.created_at,
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "data": data })))
+}

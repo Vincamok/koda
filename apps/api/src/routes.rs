@@ -87,6 +87,9 @@ where
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/webhook-events", get(pipelines::get_webhook_events))
         // Security reports
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/security-reports", get(pipelines::get_security_reports))
+        // Workspace snapshots
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", get(workspaces::get_workspace_snapshots))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", post(workspaces::post_workspace_snapshot))
         .layer(middleware::from_fn_with_state(state.clone(), with_org_context))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

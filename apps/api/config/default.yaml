@@ -24,3 +24,5 @@ ai:
   default_provider: "anthropic"
   anthropic_api_key: ""
   openai_api_key: ""
+otel_endpoint: ""
+sentry_dsn: ""

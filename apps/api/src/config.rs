@@ -47,6 +47,10 @@ pub struct AppConfig {
     pub bootstrap_super_admin_email: Option<String>,
     pub oauth: OAuthConfig,
     pub ai: AiConfig,
+    /// OTLP HTTP endpoint, e.g. http://otel-collector:4318/v1/traces
+    pub otel_endpoint: Option<String>,
+    /// Sentry DSN for error reporting
+    pub sentry_dsn: Option<String>,
 }
 
 impl AppConfig {

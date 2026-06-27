@@ -5,6 +5,13 @@ import type {
   CursorPage,
   ApiResponse,
   ApiError,
+  Pipeline,
+  PipelineRun,
+  AutomationTrigger,
+  IncomingWebhookEvent,
+  SecurityReport,
+  VulnerabilityFinding,
+  AuditEvent,
 } from '@koda/shared-types'
 
 const API_BASE_URL =
@@ -156,6 +163,62 @@ export function createWorkspace(
   data: CreateWorkspaceData,
 ): Promise<Workspace> {
   return post<Workspace>(`/api/v1/orgs/${orgId}/workspaces`, data)
+}
+
+// ── Pipelines ─────────────────────────────────────────────────────────────────
+
+export function listPipelines(orgId: string, workspaceId: string): Promise<Pipeline[]> {
+  return get<Pipeline[]>(`/api/v1/organizations/${orgId}/workspaces/${workspaceId}/pipelines`)
+}
+
+export function createPipeline(
+  orgId: string,
+  workspaceId: string,
+  data: { name: string; pipeline_type: string; config?: Record<string, unknown> },
+): Promise<Pipeline> {
+  return post<Pipeline>(`/api/v1/organizations/${orgId}/workspaces/${workspaceId}/pipelines`, data)
+}
+
+export function runPipeline(orgId: string, workspaceId: string, pipelineId: string): Promise<PipelineRun> {
+  return post<PipelineRun>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/pipelines/${pipelineId}/run`,
+  )
+}
+
+export function deletePipeline(orgId: string, workspaceId: string, pipelineId: string): Promise<void> {
+  return del<void>(`/api/v1/organizations/${orgId}/workspaces/${workspaceId}/pipelines/${pipelineId}`)
+}
+
+export function listTriggers(orgId: string, workspaceId: string): Promise<AutomationTrigger[]> {
+  return get<AutomationTrigger[]>(`/api/v1/organizations/${orgId}/workspaces/${workspaceId}/triggers`)
+}
+
+export function createTrigger(
+  orgId: string,
+  workspaceId: string,
+  data: { pipeline_id: string; trigger_type: string; schedule_cron?: string },
+): Promise<AutomationTrigger> {
+  return post<AutomationTrigger>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/triggers`,
+    data,
+  )
+}
+
+export function listWebhookEvents(orgId: string, workspaceId: string): Promise<IncomingWebhookEvent[]> {
+  return get<IncomingWebhookEvent[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/webhook-events`,
+  )
+}
+
+export function listSecurityReports(orgId: string, workspaceId: string): Promise<SecurityReport[]> {
+  return get<SecurityReport[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/security-reports`,
+  )
+}
+
+export function getAuditLogs(orgId: string, cursor?: string): Promise<CursorPage<AuditEvent>> {
+  const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+  return get<CursorPage<AuditEvent>>(`/api/v1/organizations/${orgId}/audit-logs${params}`)
 }
 
 // ── User settings ─────────────────────────────────────────────────────────────
