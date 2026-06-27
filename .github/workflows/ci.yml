@@ -120,6 +120,9 @@ jobs:
           - service: gateway
             context: .
             dockerfile: services/gateway/Dockerfile
+          - service: web-client
+            context: .
+            dockerfile: apps/web-client/Dockerfile
 
     steps:
       - uses: actions/checkout@v4

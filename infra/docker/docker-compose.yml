@@ -137,6 +137,46 @@ services:
     networks:
       - koda-platform
 
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: apps/dashboard/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8080
+    ports:
+      - "3001:3001"
+    depends_on:
+      - api
+    networks:
+      - koda-platform
+
+  admin:
+    build:
+      context: ../..
+      dockerfile: apps/admin/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8080
+      API_URL: http://api:8080
+    ports:
+      - "3002:3002"
+    depends_on:
+      - api
+    networks:
+      - koda-platform
+
+  web-client:
+    build:
+      context: ../..
+      dockerfile: apps/web-client/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_URL: http://api:8080
+    ports:
+      - "3003:3003"
+    depends_on:
+      - api
+    networks:
+      - koda-platform
+
 volumes:
   postgres_data:
   redis_data:
