@@ -29,7 +29,7 @@ Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy
 - [ ] Workspace Cargo multi-crates (api, orchestrator, worker, git-manager, gateway)
 - [ ] PostgreSQL + sqlx-migrate : modèles `Organization`, `User`, `Membership`
 - [ ] **Teams** : `Team`, `TeamMembership`, `TeamProjectAccess`, `TeamQuota`
-- [ ] API Axum : endpoints `/api/v1/auth/*` (inscription, connexion, OAuth Google/GitHub)
+- [ ] API Axum : endpoints `/api/v1/auth/*` (inscription, connexion, OAuth Google/GitHub/Authentik OIDC)
 - [ ] Sessions cookie HttpOnly + SameSite=Strict
 - [ ] Trait `AiProviderAdapter` + implémentation Anthropic HTTP (reqwest)
 - [ ] sozu en Docker Compose dev avec route de test
@@ -42,12 +42,17 @@ Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy
 - [ ] `figment` pour le chargement config (YAML + env + .env)
 - [ ] `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur l'API
 - [ ] `PersonalSpace` : modèle DB + volume Docker `koda-personal-<user-uid>` (fondations)
+- [ ] `apps/admin/` : skeleton Next.js + layout + authentification `super_admin`
+- [ ] Rôle `super_admin` : migration + bootstrap via `BOOTSTRAP_SUPER_ADMIN_EMAIL`
+- [ ] `packages/shared-types/` + `packages/api-client/` (client HTTP généré depuis OpenAPI)
+- [ ] `SecretRef` : modèle DB + colonne chiffrée AES-256-GCM
 
 ### Critères de validation
 - `cargo test --workspace` passe
-- Login/logout fonctionnel en local
+- Login/logout fonctionnel en local (Google, GitHub, Authentik)
 - sozu route une requête de test
 - Pipeline Harness vert
+- Login `super_admin` → dashboard admin accessible
 
 ---
 
@@ -179,7 +184,7 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 - [ ] `AuditEvent` : toutes les actions critiques tracées
 - [ ] RLS PostgreSQL sur tables critiques
 - [ ] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)
-- [ ] `OrganizationQuota` : quotas appliqués à la création workspace
+- [ ] `OrganizationQuota` : limites par org (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`)
 - [ ] OpenTelemetry export OTLP + intégration Sentry
 - [ ] Rate limiting par IP + par utilisateur (tower middleware)
 - [ ] Tests E2E Playwright : création workspace, revue diff, clôture
@@ -189,25 +194,39 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 - [ ] Pre-warming images Docker (worker cron quotidien)
 - [ ] Documentation OpenAPI générée et publiée
 - [ ] Snapshot workspace (docker pause + copie volume)
+- [ ] **Panel admin complet (`apps/admin/`)** :
+  - [ ] Dashboard global : métriques temps réel, santé des services
+  - [ ] Gestion organisations : CRUD, quotas, suspension
+  - [ ] Gestion utilisateurs : global, impersonation, reset MFA
+  - [ ] IA & pré-prompts : provider global, system prompt par org, templates de niveaux
+  - [ ] Logs & audit : vue unifiée `AuditEvent` + jobs Redis + export CSV/JSON
+  - [ ] Infrastructure : containers actifs, routes sozu, DB, GC manuel
+  - [ ] Endpoint `GET /api/v1/admin/health` (authentifié M2M) pour multi-instances
+- [ ] `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances
 
 ### Critères de validation
 - Parcours E2E complets verts
 - Aucun finding critique OWASP
 - Toutes les actions critiques présentes dans `audit_events`
+- Super admin : accès complet au panel admin, impersonation tracée
+- Quotas org : dépassement bloque la création workspace
 
 ---
 
 ## Backlog post-v1.0.0
 
 - Workspace forking
-- Env Manager UI (variables d'environnement)
-- Terminaux partagés (pair programming)
-- `OrganizationQuota` UI admin
+- Env Manager UI (variables d'environnement par workspace)
+- Terminaux partagés (pair programming WebRTC ou multiplexage PTY)
 - Shadow deployment pour comparaison
-- Support multi-runtime (Node/Python/Go) dans les templates
-- Auto-hibernation des workspaces inactifs
+- Support multi-runtime (Node/Python/Go) dans les templates (matrix)
+- Auto-hibernation des workspaces inactifs (détection idle + suspend)
 - Centralisation des logs avec recherche (Loki)
 - Alerting sur crash boucle et surconsommation
-- Pipeline IA refactoring/cleanup
-- Pipeline IA hardening sécurité
+- Pipeline IA refactoring/cleanup automatique
 - Export artefacts vers S3-compatible
+- Connecteurs MCP community (stdio, marketplace) — `proxy.rs` activé
+- `themeRegistry.loadFromUrl()` marketplace de thèmes
+- **Multi-instances avancé** : migration d'org d'une instance à l'autre, load balancing inter-instances
+- **`TicketRecord`** : lien workspace ↔ ticket externe (Jira, Linear, GitHub Issues)
+- **Marketplace de plugins** workspace (au-delà des 4 built-in)

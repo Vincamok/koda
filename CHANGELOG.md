@@ -8,6 +8,19 @@
 ## [Unreleased]
 
 ### Added
+- Interface administration (`apps/admin/`) : panel super_admin dédié (quotas, logs, IA, infra, multi-instances)
+- Rôle `super_admin` (plateforme, non org-scoped) avec impersonation tracée
+- `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances Koda depuis un panel central
+- OAuth Authentik (OIDC générique) en plus de Google et GitHub
+- `SecretRef` stockage : colonne DB chiffrée AES-256-GCM + inject Docker env pour secrets runtime
+- `packages/shared-types/` + `packages/api-client/` (client HTTP typé généré depuis OpenAPI)
+- `OrganizationQuota` : champs `max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`
+- `devcontainer.json` : lecture au clonage → pré-remplissage Template/Plugin (roadmap v0.3.0)
+- Catalogue plugins validé : `koda-web-ide`, `code-server`, `ssh`, `jupyter`
+- Plages TCP sozu validées : SSH `2200-2999`, PostgreSQL `5400-5499`
+- Workspace `reviewing` → clôture libre (pas de blocage obligatoire)
+- Backlog enrichi : KODA-B14 multi-instances avancé, KODA-B15 TicketRecord, KODA-B16 marketplace plugins
+- Fix mcp-gateway : `base64_encode` partagé (bug compilation `http.rs`), dead-letter, XGROUP CREATE, figment, UserMCPBinding TypeScript
 - Analyse de faisabilité initiale (`docs/FEASIBILITY_ANALYSIS.md`)
 - Décisions architecturales : Rust (Axum + SQLx), sozu gateway, Harness CI/CD
 - Système de thèmes évolutif : `ThemeRegistry` observable, `SkinManifest` avec héritage `extends`, `loadFromUrl()` marketplace

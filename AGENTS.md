@@ -40,11 +40,13 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 - Crate `figment` pour le merge YAML + env + .env (priorité : env > .env > yaml)
 - `APP_BASE_URL` obligatoire en config pour les URLs absolues (OAuth callbacks, emails)
 
-**RBAC (Teams)**
+**RBAC (Teams + super_admin)**
 - Vérifier le rôle org (`owner|admin|member`) ET le rôle team (`lead|developer|reviewer|viewer`)
 - Un `reviewer` team ne doit jamais accéder au terminal ni écrire des fichiers
 - `WorkspaceShare` pour les accès ad-hoc — vérifier expiration avant toute action
 - `TeamQuota` vérifié à la création workspace, en plus de `OrganizationQuota`
+- `super_admin` : rôle plateforme (non org-scoped) — toute action d'impersonation génère un `AuditEvent`
+- Routes `/api/v1/admin/*` : middleware `require_super_admin`, jamais exposées sans auth
 
 **Docker — nommage et réseaux**
 - Container workspace : `koda-<binding-uid>` (WorkspacePluginBinding.uid)
@@ -58,7 +60,7 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 - Le volume `koda-personal-<user-uid>` est monté read-only dans chaque workspace
 - Les fichiers `ai/` du PersonalSpace sont fusionnés avec le CLAUDE.md workspace dans le contexte LLM
 - Ne jamais logger le contenu des fichiers PersonalSpace
-- `UserMCPBinding` (personnel) est distinct de `WorkspaceMCPBinding` (workspace)
+- `UserMCPBinding` (personnel, DB uniquement) est distinct de `WorkspaceMCPBinding` (workspace) — pas de fichier mcp/bindings.json dans le PersonalSpace
 
 **Sécurité — scans**
 - `SecurityAiConfig` dans `SecurityPolicy` : chaque org configure son propre provider/model/system_prompt sécurité

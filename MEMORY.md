@@ -38,6 +38,12 @@ Koda est une plateforme de gestion d'environnements de développement à la dema
 | secret_scan | **Règles built-in** (entropy + regex) + **ScanRule custom** (org + workspace) | Trufflehog/Gitleaks externe |
 | image_scan déclencheur | **ImageScanTrigger configurable** dans SecurityPolicy (OnBuild \| OnLaunch \| Both) | Toujours au lancement |
 | Proxy trust | **`TRUSTED_PROXY_CIDRS`** par service + `axum-client-ip` | Trust aveugle headers |
+| SecretRef stockage | **DB colonne chiffrée AES-256-GCM** (clé dans env) + Docker env inject pour secrets runtime container | HashiCorp Vault (dépendance externe) |
+| Auth providers | **Google + GitHub + Authentik** (OIDC générique — extensible) | Auth custom seule |
+| Types TS partagés | **`packages/shared-types/`** (types communs dashboard+web-client+admin) + **`packages/api-client/`** (client HTTP généré depuis OpenAPI) | Types copiés par app |
+| Interface admin | **`apps/admin/`** (Next.js séparé) + rôle `super_admin` (au-dessus de `owner`) + `KodaInstance` pour multi-instances | Section dans dashboard |
+| Workspace clôture | **Libre** — aucun blocage sur la phase `reviewing` | Revue obligatoire |
+| TCP port ranges | **SSH `2200-2999`**, **PostgreSQL `5400-5499`** (réservé dans sozu, stocké dans `ExposureRule.host_port`) | — |
 
 ## Environnements
 
@@ -334,15 +340,13 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 │   ├── env_defaults.json      # Variables injectées dans chaque workspace au démarrage
 │   └── startup.sh             # Script exécuté à chaque ouverture de workspace
 │
-├── notes/
-│   ├── README.md              # Wiki / notes personnelles
-│   ├── bookmarks.md           # Ressources, liens utiles
-│   └── workspace-notes/       # Notes par workspace (non partagées avec l'équipe)
-│       └── <workspace-uid>.md
-│
-└── mcp/
-    └── bindings.json          # Connecteurs MCP personnels (SecretRefs — jamais en clair)
+└── notes/
+    ├── README.md              # Wiki / notes personnelles
+    ├── bookmarks.md           # Ressources, liens utiles
+    └── workspace-notes/       # Notes par workspace (non partagées avec l'équipe)
+        └── <workspace-uid>.md
 ```
+**Note :** Les bindings MCP personnels (`UserMCPBinding`) sont stockés en DB uniquement — pas de fichier dans le PersonalSpace (les SecretRef ne peuvent pas être en fichier).
 
 **Fusion avec le workspace :**
 | Fichier | Priorité |
@@ -355,6 +359,38 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 | MCP bindings | Additifs (workspace + personnel) |
 
 **Règle de sécurité :** les fichiers `ai/` du PersonalSpace ne sont jamais loggués ni transmis hors du contexte LLM.
+
+## Interface Administration (`apps/admin/`)
+
+App Next.js dédiée, séparée du dashboard utilisateur. Accessible sur `/admin`, restreinte au rôle `super_admin` (distinct de `owner` org). Peut être déployée sur un réseau interne uniquement en prod.
+
+### Modules
+
+| Module | Contenu |
+|--------|---------|
+| **Tableau de bord global** | Workspaces actifs, containers, CPU/RAM, santé des services (api, orchestrator, worker, sozu, Redis, PG), alertes (dead-letter, orphelins, quotas dépassés) |
+| **Organisations** | CRUD, suspension/réactivation, quotas (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`) |
+| **Utilisateurs** | Vue globale toutes orgs, affectations, désactivation compte, reset MFA, impersonation (AuditEvent obligatoire) |
+| **IA & pré-prompts** | Provider global par défaut, override par org, system prompt global + override par org (SecurityAiConfig), templates de prompts par niveau éditables |
+| **Logs & audit** | Vue unifiée `AuditEvent` (filtres : org, user, action, date), jobs Redis (streams + dead-letter), VulnerabilityFindings agrégés, export CSV/JSON |
+| **Infrastructure** | Containers Docker actifs (`koda.managed=true`), routes sozu actives, taille DB, migrations, GC manuel orphelins |
+| **Sécurité** | ScanRule built-in (lecture seule), SecurityPolicy par org, derniers rapports de scan |
+| **Multi-instances** | Vue de toutes les `KodaInstance` connectées, métriques agrégées, affectation org → instance, basculement d'une org |
+
+### Rôle `super_admin`
+
+Rôle plateforme (pas org-scoped). Créé en bootstrap via variable d'env `BOOTSTRAP_SUPER_ADMIN_EMAIL`. Peut impersonner n'importe quel utilisateur ou org — chaque action d'impersonation génère un `AuditEvent`.
+
+### Multi-instances (`KodaInstance`)
+
+Permet à un panel admin central de piloter plusieurs déploiements Koda :
+
+```
+KodaInstance(id, name, base_url, api_token_ref: SecretRef, region, status, last_seen_at)
+OrgInstanceAffinity(org_id, instance_id)  — quelle org sur quelle instance
+```
+
+Chaque instance expose `GET /api/v1/admin/health` authentifié par token M2M. Le panel central agrège les métriques et peut déclencher une migration d'org d'une instance à l'autre.
 
 ## Sécurité intégrée dans les projets
 
@@ -496,6 +532,9 @@ Chat IA (web-client)
 - `VulnerabilityFinding` : finding individuel d'un SecurityReport
 - `SecurityPolicy` : org_id, required_scans[], min_severity_to_block, security_ai_config (JSON), image_scan_trigger
 - `ScanRule` : règle de détection custom (org_id|workspace_id, rule_type Regex|Entropy|Composite, pattern, severity, enabled)
+- `KodaInstance` : instance Koda enregistrée dans le panel admin central (base_url, api_token_ref, region, status)
+- `OrgInstanceAffinity` : affectation org → instance Koda
+- `TicketRecord` : lien entre un workspace et un ticket externe (Jira, Linear, GitHub Issues) — backlog post-v1.0.0
 
 ## Contraintes non-négociables
 - Pas de Docker-in-Docker (DinD)
@@ -523,8 +562,9 @@ Chat IA (web-client)
 ## Arborescence projet
 ```
 apps/
-  dashboard/        # Next.js + TypeScript + shadcn/ui  (admin/gestion)
+  dashboard/        # Next.js + TypeScript + shadcn/ui  (gestion org — users, workspaces)
   web-client/       # React + Monaco Editor + xterm.js  (IDE in-browser)
+  admin/            # Next.js — panel super_admin (quotas, logs, multi-instances, infra)
   api/              # Rust — Axum + SQLx + tokio
     config/
       default.yaml
@@ -546,8 +586,8 @@ services/
     config/default.yaml
     .env.example
 packages/
-  shared-types/     # Types TypeScript partagés (dashboard + web-client)
-  api-client/       # Client TypeScript généré depuis OpenAPI
+  shared-types/     # Types TypeScript partagés (dashboard + web-client + admin)
+  api-client/       # Client HTTP TypeScript généré depuis l'OpenAPI Koda (fetch typed)
   mcp-connectors/   # Définitions + registre des connecteurs MCP (TypeScript)
   themes/           # ThemeRegistry + 4 skins + SkinManifest
 infra/

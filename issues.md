@@ -137,7 +137,7 @@
 | KODA-089 | feature | `AuditEvent` : toutes les actions critiques tracées (auth, workspace, sécurité, RBAC) | critical | open | KODA-008 |
 | KODA-090 | security | RLS PostgreSQL sur tables critiques (workspaces, pipelines, security_reports...) | critical | open | KODA-003 |
 | KODA-091 | security | TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009) | high | open | KODA-005 |
-| KODA-092 | feature | `OrganizationQuota` : quotas appliqués à la création workspace + dashboard admin | high | open | KODA-022 |
+| KODA-092 | feature | `OrganizationQuota` : champs `max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members` + enforcement à la création workspace | high | open | KODA-022 |
 | KODA-093 | chore | OpenTelemetry export OTLP + intégration Sentry sur tous les services Rust | high | open | KODA-002 |
 | KODA-094 | chore | Rate limiting par IP + par user (tower middleware) | high | open | KODA-012 |
 | KODA-095 | chore | Tests E2E Playwright : création workspace, revue diff, clôture | high | open | — |
@@ -147,6 +147,21 @@
 | KODA-099 | chore | Pre-warming images Docker (worker cron quotidien) | medium | open | KODA-039 |
 | KODA-100 | feature | Snapshot workspace (docker pause + copie volume) | medium | open | KODA-037 |
 | KODA-101 | docs | Documentation OpenAPI générée et publiée | medium | open | — |
+| KODA-102 | feature | Migration `super_admin` + bootstrap via `BOOTSTRAP_SUPER_ADMIN_EMAIL` | critical | open | KODA-008 |
+| KODA-103 | feature | `apps/admin/` : skeleton Next.js + layout + auth `super_admin` | high | open | KODA-102 |
+| KODA-104 | feature | Panel admin : tableau de bord global (métriques temps réel, santé services) | high | open | KODA-103 KODA-093 |
+| KODA-105 | feature | Panel admin : gestion organisations (CRUD, quotas, suspension, impersonation) | high | open | KODA-103 KODA-092 KODA-089 |
+| KODA-106 | feature | Panel admin : gestion utilisateurs (vue globale, désactivation, reset MFA, impersonation) | high | open | KODA-103 KODA-089 |
+| KODA-107 | feature | Panel admin : IA & pré-prompts (provider global, system prompt par org, templates niveaux éditables) | high | open | KODA-103 KODA-013 |
+| KODA-108 | feature | Panel admin : logs & audit (vue `AuditEvent` filtrée, jobs Redis dead-letter, export CSV/JSON) | high | open | KODA-103 KODA-089 |
+| KODA-109 | feature | Panel admin : infrastructure (containers `koda.managed`, routes sozu, taille DB, GC manuel) | medium | open | KODA-103 |
+| KODA-110 | feature | Panel admin : sécurité (ScanRule built-in, SecurityPolicy par org, derniers rapports) | medium | open | KODA-103 KODA-081 |
+| KODA-111 | feature | `KodaInstance` + `OrgInstanceAffinity` : migrations + API `GET /admin/instances` + endpoint health M2M | medium | open | KODA-091 KODA-102 |
+| KODA-112 | feature | Panel admin : multi-instances (vue agrégée métriques, affectation org → instance) | medium | open | KODA-103 KODA-111 |
+| KODA-113 | feature | Migration `secret_refs` : table chiffrée AES-256-GCM, clé dans env | critical | open | KODA-008 |
+| KODA-114 | feature | OAuth Authentik : provider OIDC générique (extensible pour autres IdP) | high | open | KODA-007 |
+| KODA-115 | feature | `packages/shared-types/` : types TS partagés entre dashboard, web-client et admin | medium | open | KODA-001 |
+| KODA-116 | feature | `packages/api-client/` : client HTTP TypeScript généré depuis l'OpenAPI Koda | medium | open | KODA-101 KODA-115 |
 
 ---
 
@@ -167,6 +182,9 @@
 | KODA-B11 | feature | Shadow deployment pour comparaison | |
 | KODA-B12 | feature | Export artefacts vers S3-compatible | |
 | KODA-B13 | feature | Pipeline IA refactoring/cleanup automatique | |
+| KODA-B14 | feature | Multi-instances avancé : migration d'org d'une instance à l'autre, load balancing | `KodaInstance` étendu |
+| KODA-B15 | feature | `TicketRecord` : lien workspace ↔ ticket externe (Jira, Linear, GitHub Issues) | Dépend connecteurs MCP |
+| KODA-B16 | feature | Marketplace de plugins workspace | Au-delà des 4 built-in |
 
 ---
 
