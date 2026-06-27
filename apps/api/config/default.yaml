@@ -1,0 +1,26 @@
+database_url: "postgres://koda:koda@localhost:5432/koda"
+redis_url: "redis://localhost:6379"
+listen_addr: "0.0.0.0:8080"
+app_base_url: "http://localhost:8080"
+trusted_proxy_cidrs:
+  - "127.0.0.1/8"
+  - "10.0.0.0/8"
+  - "172.16.0.0/12"
+session_secret: "change-me-in-production-min-64-chars-random-secret-key-here-pad"
+secret_encryption_key: "change-me-in-production-32-bytes"
+bootstrap_super_admin_email: ""
+oauth:
+  google:
+    client_id: ""
+    client_secret: ""
+  github:
+    client_id: ""
+    client_secret: ""
+  authentik:
+    client_id: ""
+    client_secret: ""
+    issuer_url: ""
+ai:
+  default_provider: "anthropic"
+  anthropic_api_key: ""
+  openai_api_key: ""

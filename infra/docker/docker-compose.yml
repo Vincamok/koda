@@ -1,0 +1,148 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: koda
+      POSTGRES_PASSWORD: koda
+      POSTGRES_DB: koda
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U koda"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  sozu:
+    image: sozu/sozu:latest
+    volumes:
+      - sozu_socket:/var/run/sozu
+      - ./sozu/config.toml:/etc/sozu/config.toml:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - api
+
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      EXEC: 1
+      POST: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - koda-platform
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://koda:koda@postgres:5432/koda
+      REDIS_URL: redis://redis:6379
+      LISTEN_ADDR: "0.0.0.0:8080"
+      APP_BASE_URL: http://localhost:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - koda-platform
+
+  orchestrator:
+    build:
+      context: ../..
+      dockerfile: services/orchestrator/Dockerfile
+    environment:
+      DATABASE_URL: postgres://koda:koda@postgres:5432/koda
+      REDIS_URL: redis://redis:6379
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+    depends_on:
+      - api
+      - docker-socket-proxy
+    networks:
+      - koda-platform
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
+    environment:
+      DATABASE_URL: postgres://koda:koda@postgres:5432/koda
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - api
+    networks:
+      - koda-platform
+
+  git-manager:
+    build:
+      context: ../..
+      dockerfile: services/git-manager/Dockerfile
+    environment:
+      DATABASE_URL: postgres://koda:koda@postgres:5432/koda
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - api
+    networks:
+      - koda-platform
+
+  gateway:
+    build:
+      context: ../..
+      dockerfile: services/gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgres://koda:koda@postgres:5432/koda
+      REDIS_URL: redis://redis:6379
+      SOZU_SOCKET: /var/run/sozu/koda.sock
+    volumes:
+      - sozu_socket:/var/run/sozu
+    depends_on:
+      - api
+      - sozu
+    networks:
+      - koda-platform
+
+  mcp-gateway:
+    build:
+      context: ../..
+      dockerfile: services/mcp-gateway/Dockerfile
+    environment:
+      DATABASE_URL: postgres://koda:koda@postgres:5432/koda
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      - api
+    networks:
+      - koda-platform
+
+volumes:
+  postgres_data:
+  redis_data:
+  sozu_socket:
+
+networks:
+  koda-platform:
+    driver: bridge
+    name: koda-platform

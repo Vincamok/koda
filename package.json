@@ -1,0 +1,29 @@
+{
+  "name": "koda",
+  "private": true,
+  "workspaces": [
+    "apps/dashboard",
+    "apps/web-client",
+    "apps/admin",
+    "packages/shared-types",
+    "packages/api-client",
+    "packages/mcp-connectors",
+    "packages/themes",
+    "packages/i18n"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "type-check": "turbo run type-check"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "packageManager": "npm@10.8.0"
+}

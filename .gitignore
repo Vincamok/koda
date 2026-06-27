@@ -1,0 +1,50 @@
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock
+
+# Node
+node_modules/
+.next/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+
+# Env files (jamais commités — contiennent des secrets)
+.env
+.env.local
+.env.*.local
+*.env
+
+# Docker overrides dev
+infra/docker/docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# sqlx offline mode cache
+.sqlx/
+
+# Coverage
+lcov.info
+coverage/
+
+# Secrets (ne jamais commiter)
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
