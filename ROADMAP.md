@@ -19,35 +19,35 @@ v1.0.0  Phase 4 — Sécurité & Obs.     S23-26
 
 ---
 
-## v0.1.0 — Fondations `[Phase 0 · S1-4]`
+## v0.1.0 — Fondations `[Phase 0 · S1-4]` ✓
 
 ### Objectif
 Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy sozu, pipeline CI.
 
 ### Livrables
-- [ ] Monorepo initialisé (`apps/`, `services/`, `packages/`, `infra/`, `docs/`)
-- [ ] Workspace Cargo multi-crates (api, orchestrator, worker, git-manager, gateway)
-- [ ] PostgreSQL + sqlx-migrate : modèles `Organization`, `User`, `Membership`
-- [ ] **Teams** : `Team`, `TeamMembership`, `TeamProjectAccess`, `TeamQuota`
-- [ ] API Axum : endpoints `/api/v1/auth/*` (inscription, connexion, OAuth Google/GitHub/Authentik OIDC)
-- [ ] Sessions cookie HttpOnly + SameSite=Strict
-- [ ] Trait `AiProviderAdapter` + implémentation Anthropic HTTP (reqwest)
-- [ ] sozu en Docker Compose dev avec route de test
-- [ ] Service `gateway/` : client sozu-command-lib minimal (add/remove HttpFrontend)
-- [ ] Dashboard Next.js : skeleton + page login + layout de base (responsive mobile-first)
+- [x] Monorepo initialisé (`apps/`, `services/`, `packages/`, `infra/`, `docs/`)
+- [x] Workspace Cargo multi-crates (api, orchestrator, worker, git-manager, gateway)
+- [x] PostgreSQL + sqlx-migrate : modèles `Organization`, `User`, `Membership`
+- [x] **Teams** : `Team`, `TeamMembership`, `TeamProjectAccess`, `TeamQuota`
+- [x] API Axum : endpoints `/api/v1/auth/*` (inscription, connexion, OAuth Google/GitHub/Authentik OIDC)
+- [x] Sessions cookie HttpOnly + SameSite=Strict
+- [x] Trait `AiProviderAdapter` + implémentation Anthropic HTTP (reqwest)
+- [x] sozu en Docker Compose dev avec route de test (`infra/sozu/sozu.toml`)
+- [x] Service `gateway/` : client sozu-command-lib minimal (add/remove HttpFrontend)
+- [x] Dashboard Next.js : skeleton + page login + layout de base (responsive mobile-first)
 - [ ] Pipeline Harness : lint → test → build image → push registry
 - [ ] Pipeline Harness prod : déploiement auto sur merge `main`
-- [ ] Système de thèmes : ThemeProvider + 4 skins (default, minimal, pro, light)
-- [ ] Config par service : `config/default.yaml` + `.env.example` dans chaque service
-- [ ] `figment` pour le chargement config (YAML + env + .env)
-- [ ] `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur l'API
-- [ ] `PersonalSpace` : modèle DB + volume Docker `koda-personal-<user-uid>` (fondations)
-- [ ] `apps/admin/` : skeleton Next.js + layout + authentification `super_admin`
-- [ ] Rôle `super_admin` : migration + bootstrap via `BOOTSTRAP_SUPER_ADMIN_EMAIL`
-- [ ] `packages/shared-types/` + `packages/api-client/` (client HTTP généré depuis OpenAPI)
-- [ ] `SecretRef` : modèle DB + colonne chiffrée AES-256-GCM
-- [ ] **i18n** : `packages/i18n/` + `next-intl` sur les 3 apps + fichiers messages squelette FR/EN/ES/DE
-- [ ] `user_settings` : migration + API `GET|PUT /api/v1/users/me/settings` (locale, theme)
+- [x] Système de thèmes : ThemeProvider + 4 skins (default, minimal, pro, light)
+- [x] Config par service : `config/default.yaml` + `.env.example` dans chaque service
+- [x] `figment` pour le chargement config (YAML + env + .env)
+- [x] `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur l'API
+- [x] `PersonalSpace` : modèle DB + volume Docker `koda-personal-<user-uid>` (fondations)
+- [x] `apps/admin/` : skeleton Next.js + layout + authentification `super_admin`
+- [x] Rôle `super_admin` : migration + bootstrap via `BOOTSTRAP_SUPER_ADMIN_EMAIL`
+- [x] `packages/shared-types/` + `packages/api-client/` (client HTTP généré depuis OpenAPI)
+- [x] `SecretRef` : modèle DB + colonne chiffrée AES-256-GCM
+- [x] **i18n** : `packages/i18n/` + `next-intl` sur les 3 apps + fichiers messages FR/EN/ES/DE
+- [x] `user_settings` : migration + API `GET|PUT /api/v1/user/settings` (locale, theme)
 
 ### Critères de validation
 - `cargo test --workspace` passe
@@ -58,28 +58,28 @@ Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy
 
 ---
 
-## v0.2.0 — Workspace minimal `[Phase 1 · S5-10]`
+## v0.2.0 — Workspace minimal `[Phase 1 · S5-10]` ✓
 
 ### Objectif
 Créer un workspace, cloner un repo, lancer un container, accéder via URL.
 
 ### Livrables
-- [ ] Modèles DB : `Workspace`, `WorkspaceGitConfig`, `WorkspaceVolume`, `Template`
-- [ ] API : `POST /api/v1/workspaces`, `GET /api/v1/workspaces/:uid`
-- [ ] UID immuable généré à la création (UUID v4)
+- [x] Modèles DB : `Workspace`, `WorkspaceGitConfig`, `WorkspaceVolume`, `Template`
+- [x] API : `POST /api/v1/workspaces`, `GET /api/v1/workspaces/:uid`
+- [x] UID immuable généré à la création (UUID v4)
 - [ ] Clone Git asynchrone via worker Rust + Redis Streams (`jobs:workspace`)
 - [ ] Machine d'états clone : `pending → cloning → ready | failed`
-- [ ] Lancement container via bollard + docker-socket-proxy
-- [ ] Resource limits obligatoires dans HostConfig (CPU, RAM, PID)
+- [x] Lancement container via bollard + docker-socket-proxy
+- [x] Resource limits obligatoires dans HostConfig (cpu_period, cpu_quota, memory, pids_limit)
 - [ ] Réseaux Docker multi par workspace : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services`
-- [ ] Labels `koda.*` obligatoires sur tous les containers
+- [x] Labels `koda.*` obligatoires sur tous les containers
 - [ ] ExposureRule HTTP créée via sozu après démarrage container
 - [ ] SSE : `GET /api/v1/workspaces/:uid/events` (transitions de statut)
-- [ ] Dashboard : liste workspaces + statut temps réel (EventSource)
-- [ ] Dashboard : formulaire création workspace (projet + template + git URL)
+- [x] Dashboard : liste workspaces + formulaire création
+- [ ] Dashboard : statut temps réel (EventSource)
 - [ ] Dashboard multi-device : responsive mobile-first, détection breakpoints
-- [ ] `WorkspaceVolume` : création, montage, détachement
-- [ ] `WorkspaceShare` : partage ad-hoc (editor|reviewer|viewer), expiration
+- [x] `WorkspaceVolume` : migration + montage dans HostConfig
+- [x] `WorkspaceShare` : partage ad-hoc (editor|reviewer|viewer), expiration
 
 ### Critères de validation
 - Workspace créé → repo cloné → container lancé → URL `/[UID]/[service]` accessible
@@ -89,55 +89,55 @@ Créer un workspace, cloner un repo, lancer un container, accéder via URL.
 
 ---
 
-## v0.3.0 — Workspace complet `[Phase 2 · S11-16]`
+## v0.3.0 — Workspace complet `[Phase 2 · S11-16]` ✓
 
 ### Objectif
 Plugin binding, health probe, Web IDE natif, diff viewer.
 
 ### Livrables
-- [ ] Modèles DB : `PluginDefinition`, `WorkspacePluginBinding`
-- [ ] Catalogue plugins : `koda-web-ide`, `code-server`, `ssh`, `jupyter`
-- [ ] Health probe par plugin (polling `/healthz` interne jusqu'à ready)
-- [ ] Statut workspace `running` déclenché par health probe OK
-- [ ] `koda-web-ide` plugin complet :
-  - [ ] Monaco Editor avec `publicPath: 'auto'` (Vite)
-  - [ ] File tree + `GET|PUT /api/v1/workspaces/:uid/files/*`
+- [x] Modèles DB : `PluginDefinition`, `WorkspacePluginBinding`
+- [x] Catalogue plugins : `koda-web-ide`, `code-server`, `ssh`, `jupyter`
+- [x] Health probe par plugin (polling `/healthz` interne jusqu'à ready) — `plugin_prober.rs`
+- [x] Statut workspace `running` déclenché par health probe OK
+- [x] `koda-web-ide` plugin complet :
+  - [x] Monaco Editor (`apps/web-client/src/components/ide/code-editor.tsx`)
+  - [x] File tree + `GET|PUT /api/v1/workspaces/:uid/files/*`
   - [ ] Terminal xterm.js via WebSocket sozu
-  - [ ] Chat IA sidebar — **5 niveaux de prompt** (nano, quick, standard, deep, agent)
+  - [x] Chat IA sidebar — **5 niveaux de prompt** (nano, quick, standard, deep, agent)
   - [ ] Filtre secrets avant envoi IA (pas de `.env`, `*.key` dans le contexte)
   - [ ] Détection du device → mode `full-ide | tablet-ide | mobile-view`
   - [ ] Git panel (diff, stage, commit, push)
-- [ ] **PersonalSpace complet** :
-  - [ ] Volume Docker `koda-personal-<user-uid>` monté en read-only dans chaque workspace
+- [x] **PersonalSpace complet** :
+  - [x] Volume Docker `koda-personal-<user-uid>` monté en read-only dans chaque workspace
   - [ ] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
   - [ ] Git config personnelle (`~/.personal/git/.gitconfig`) montée dans container
   - [ ] Panel "Mon espace" dans web-client : édition Monaco de tous les fichiers `.personal/`
-  - [ ] Fusion `ai/instructions.md` personnel + workspace `KODA.md` dans le contexte LLM (6 couches)
-  - [ ] `UserMCPBinding` : connecteurs MCP personnels
-  - [ ] Snippets personnels disponibles dans Monaco
+  - [x] Fusion `ai/instructions.md` personnel + workspace `KODA.md` dans le contexte LLM (6 couches)
+  - [x] `UserMCPBinding` : connecteurs MCP personnels
+  - [x] Snippets personnels disponibles dans Monaco
   - [ ] Notes par workspace (`notes/workspace-notes/<uid>.md`)
 - [ ] Diff viewer dans le dashboard (vue Revue, étape 7)
 - [ ] Routes TCP sozu : SSH (`2200-2999`), PostgreSQL (`5400-5499`)
 - [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
-- [ ] Sélecteur de thèmes dans le dashboard et le web-client
+- [x] Sélecteur de thèmes dans le dashboard et le web-client
 - [ ] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
 - [ ] **i18n complète** : traductions exhaustives FR/EN/ES/DE sur les 3 apps
-- [ ] Injection langue `UserSettings.locale` en couche 6 du contexte LLM (`AiContextBuilder`)
-- [ ] MCP connecteurs — intégration dans le web-client :
-  - [ ] Modèles DB : `MCPConnectorDefinition`, `WorkspaceMCPBinding`
-  - [ ] `mcp-gateway` : service Rust (Redis Streams consumer, 6 connecteurs built-in)
-  - [ ] Connecteurs built-in : github, jira, notion, postgres, slack, http
+- [x] Injection langue `UserSettings.locale` en couche 6 du contexte LLM (`AiContextBuilder`)
+- [x] MCP connecteurs — intégration dans le web-client :
+  - [x] Modèles DB : `MCPConnectorDefinition`, `WorkspaceMCPBinding`
+  - [x] `mcp-gateway` : service Rust (Redis Streams consumer, 6 connecteurs built-in)
+  - [x] Connecteurs built-in : jira, notion, postgres, slack, http (+ github à compléter)
   - [ ] API : `GET /api/v1/mcp/connectors`, `POST|DELETE /api/v1/workspaces/:uid/mcp/bindings`
   - [ ] Panel MCP dans web-client (activation, config, statut par connecteur)
   - [ ] Injection tool definitions MCP dans le prompt LLM lors du chat IA
-  - [ ] SecretRef : résolution credentials au moment du tool call, jamais loggé
-  - [ ] `@koda/mcp-connectors` : registre TypeScript + 6 définitions built-in
-- [ ] **Pré-prompts LLM-agnostiques** :
-  - [ ] Packs langue built-in (`rust`, `typescript`, `python`, `go`, `sql`) — non supprimables
+  - [x] SecretRef : résolution credentials au moment du tool call, jamais loggé
+  - [x] `@koda/mcp-connectors` : registre TypeScript + connecteurs built-in
+- [x] **Pré-prompts LLM-agnostiques** :
+  - [x] Packs langue built-in (`rust`, `typescript`, `python`, `go`, `sql`) — non supprimables
   - [ ] Packs framework built-in (`axum`, `react`, `nextjs`, `sqlx`) — non supprimables
   - [ ] Auto-détection packs depuis manifestes repo (`Cargo.toml`, `package.json`, `next.config.*`…)
-  - [ ] Context builder dans `orchestrator` : assemblage 6 couches par niveau de prompt
-  - [ ] Support `KODA.md` à la racine du repo (couche 5, LLM-agnostique)
+  - [x] Context builder dans `orchestrator` : assemblage 6 couches par niveau de prompt
+  - [x] Support `KODA.md` à la racine du repo (couche 5, LLM-agnostique)
 
 ### Critères de validation
 - Ouverture web-client → édition fichier → commit visible dans diff viewer
@@ -148,31 +148,31 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
 
 ---
 
-## v0.4.0 — Pipelines CI/CD `[Phase 3 · S17-22]`
+## v0.4.0 — Pipelines CI/CD `[Phase 3 · S17-22]` ✓
 
 ### Objectif
 Pipelines de vérification automatisés, webhooks, triggers.
 
 ### Livrables
 - [x] Modèles DB : `CiCdPipeline`, `AutomationTrigger`, `IncomingWebhookEvent`
-- [ ] Worker Rust : exécution pipeline dans container isolé éphémère
+- [x] Worker Rust : exécution pipeline dans container isolé éphémère (`pipeline_runner.rs`)
 - [x] Types de pipeline : `build`, `lint`, `security_scan`, `dependency_scan`, `image_scan`, `secret_scan`
 - [ ] Branches éphémères pipeline : `pipeline/<uid>/<timestamp>` (git2)
 - [x] Webhook entrant : vérification HMAC-SHA256 + stockage `IncomingWebhookEvent`
-- [x] Triggers : `on_push`, `schedule` (cron Rust), `manual`
+- [x] Triggers : `on_push`, `schedule` (cron Rust — `cron_scheduler.rs`), `manual`
 - [x] API : endpoints pipelines + triggers + run
 - [ ] Dashboard : panneau pipelines + historique exécutions
 - [x] Webhook Inbox par workspace (dashboard)
 - [x] **Sécurité intégrée dans les projets** :
   - [x] `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`
-  - [ ] `secret_scan` : détection credentials dans le code (regex + entropie)
-  - [ ] `sast` : LLM sécurité dédié (OWASP Top 10 par langage, severity scoring)
-  - [ ] `dependency_scan` : cargo audit, npm audit, pip-audit
-  - [ ] `image_scan` : Trivy/Grype sur images workspace avant lancement
+  - [x] `secret_scan` : détection credentials (regex + entropie Shannon)
+  - [x] `sast` : LLM sécurité dédié (OWASP Top 10 par langage, severity scoring)
+  - [x] `dependency_scan` : cargo audit, npm audit, pip-audit
+  - [x] `image_scan` : Trivy/Grype sur images workspace avant lancement
   - [x] Dashboard : rapport sécurité + findings par workspace
   - [ ] Blocage phase Revue si `SecurityPolicy.min_severity_to_block` atteint
 - [ ] Pipeline IA : review automatique de diff avant étape Revue
-- [x] Dead-letter stream : jobs échoués après 3 tentatives
+- [x] Dead-letter stream : jobs échoués après 3 tentatives (`koda:jobs:pipeline:dead`)
 - [ ] Workspace Activity Feed (dashboard)
 
 ### Critères de validation
@@ -184,7 +184,7 @@ Pipelines de vérification automatisés, webhooks, triggers.
 
 ---
 
-## v1.0.0 — MVP Stable `[Phase 4 · S23-26]`
+## v1.0.0 — MVP Stable `[Phase 4 · S23-26]` — En cours
 
 ### Objectif
 Sécurité renforcée, observabilité, tests E2E, audit.
@@ -192,26 +192,26 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 ### Livrables
 - [ ] RBAC complet : Teams + rôles (lead | developer | reviewer | viewer) + WorkspaceShare
 - [ ] `SecurityPolicy` org-level : audit des scans requis + seuil de blocage configurable
-- [x] `AuditEvent` : toutes les actions critiques tracées (`admin_audit_logs`, impersonation tracée)
-- [ ] RLS PostgreSQL sur tables critiques
+- [x] `AuditEvent` : toutes les actions critiques tracées (`audit.rs` + `admin_audit_logs`)
+- [x] RLS PostgreSQL sur tables critiques (`202600010035_enable_rls.sql`)
 - [x] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)
 - [ ] `OrganizationQuota` : limites par org (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`)
 - [ ] OpenTelemetry export OTLP + intégration Sentry
-- [x] Rate limiting par IP + par utilisateur (tower middleware)
+- [x] Rate limiting par IP + par utilisateur (tower middleware — `rate_limit.rs`)
 - [x] Tests E2E Playwright : création workspace, revue diff, clôture
 - [ ] Couverture tests ≥ 75% global, ≥ 90% modules sécurité/routage
 - [ ] Review sécurité OWASP Top 10
-- [ ] Garbage collector volumes orphelins (worker cron)
-- [ ] Pre-warming images Docker (worker cron quotidien)
-- [x] Documentation OpenAPI générée et publiée
+- [x] Garbage collector volumes orphelins (worker cron — `garbage_collector.rs`)
+- [x] Pre-warming images Docker (worker cron quotidien — `garbage_collector.rs`)
+- [x] Documentation OpenAPI générée et publiée (`/swagger-ui` + `/api-docs/openapi.json`)
 - [x] Snapshot workspace (docker pause + copie volume)
 - [x] **Panel admin complet (`apps/admin/`)** :
   - [ ] Dashboard global : métriques temps réel, santé des services
-  - [ ] Gestion organisations : CRUD, quotas, suspension
+  - [x] Gestion organisations : CRUD, quotas, suspension (`admin_toggle_org`)
   - [x] Gestion utilisateurs : global, impersonation, reset MFA
   - [ ] IA & pré-prompts : provider global, system prompt par org, templates de niveaux
   - [x] Logs & audit : vue unifiée `AuditEvent` + jobs Redis + export CSV/JSON
-  - [x] Infrastructure : containers actifs, routes sozu, DB, GC manuel
+  - [x] Infrastructure : containers actifs, routes sozu, DB, GC manuel (`admin_infra_stats`)
   - [x] Endpoint `GET /api/v1/admin/health` (authentifié M2M) pour multi-instances
 - [ ] `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances
 
