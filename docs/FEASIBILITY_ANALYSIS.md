@@ -12,7 +12,7 @@ Koda est un système de gestion d'environnements de développement à la demande
 
 **Stack retenue :**
 - Backend API + Workers : **Rust** (Axum + SQLx + tokio + bollard)
-- Gateway : **nginxify** (outil existant, nginx + API dynamique)
+- Gateway : **sozu** (reverse-proxy Rust, TLS + HTTP/2 + TCP natifs)
 - Frontend : **Next.js** + TypeScript + shadcn/ui + Tailwind
 - BDD : **PostgreSQL** + sqlx-migrate
 - Queue : **Redis Streams** (consumer groups Rust)
@@ -23,23 +23,49 @@ Koda est un système de gestion d'environnements de développement à la demande
 
 ## 2. Analyse par couche
 
-### 2.1 Gateway / Reverse-Proxy dynamique — nginxify
+### 2.1 Gateway / Reverse-Proxy dynamique — sozu
 
-**Faisabilité : ✅ Élevée (outil existant)**
+**Faisabilité : ✅ Élevée**
 
-Le routage par UID avec Path Stripping est assuré par **nginxify**, un outil nginx-based avec API dynamique déjà construit. Cela élimine le risque d'implémentation d'un proxy custom et couvre nativement :
-- Routing dynamique par UID via API (création/suppression de routes sans reload nginx)
-- Path Stripping avant transmission au container
-- WebSocket : nginx gère `Upgrade` / `Connection` nativement via `proxy_pass`
-- Port forwarding à la demande : inclus dans nginxify
+**sozu** est un reverse-proxy Rust développé par Clever Cloud, utilisé en production. Il remplace entièrement nginxify et couvre tous les besoins Koda sans dépendance externe non-Rust :
 
-**Intégration Koda → nginxify :**
-L'API Control Plane appelle l'API nginxify à chaque changement d'`ExposureRule`. Le format d'appel attendu :
-```json
-{ "uid": "...", "public_path": "/[UID]/app", "internal_host": "172.17.0.X", "internal_port": 3000, "strip_prefix": true }
+| Besoin | sozu |
+|--------|------|
+| Routing HTTP par chemin `[UID]/[service]` | ✅ `HttpFrontend` + `path_prefix` |
+| Path Stripping | ✅ natif |
+| WebSocket (code-server, xterm.js) | ✅ HTTP Upgrade transparent |
+| TLS + Let's Encrypt | ✅ intégré |
+| HTTP/2 | ✅ intégré |
+| Tunnels TCP (SSH, PostgreSQL) | ✅ `TcpFrontend` |
+| Rechargement sans coupure | ✅ hot reload natif |
+| Configuration dynamique | ✅ `sozu-command-lib` (crate Rust) |
+
+**Intégration Koda → sozu :**
+
+Le service `services/gateway/` utilise `sozu-command-lib` pour piloter sozu programmatiquement. Aucun fichier de config à éditer, aucun reload manuel.
+
+Routes HTTP (multiplexage par chemin) :
+```rust
+// Ajout d'une ExposureRule HTTP
+sozu.add_http_frontend(HttpFrontend {
+    path_prefix: format!("/{uid}/app"),
+    ..
+});
+sozu.add_backend(Backend { address: "172.17.0.X:3000", .. });
 ```
 
-**Point d'attention :** Définir la stratégie d'authentification des appels API entre Koda et nginxify (shared secret ou mTLS) pour éviter qu'un tiers puisse créer des routes arbitraires.
+Routes TCP (multiplexage par port) :
+```rust
+// Tunnel SSH workspace : port 2201 → container:22
+sozu.add_tcp_frontend(TcpFrontend { port: 2201, .. });
+sozu.add_backend(Backend { address: "172.17.0.X:22", .. });
+```
+
+**Allocation de ports TCP :** plages réservées stockées en DB dans `ExposureRule.host_port`.
+- SSH : `2200–2999`
+- PostgreSQL : `5400–5499`
+
+**Sécurité :** sozu écoute sur un socket Unix local — pas d'API réseau exposée. L'accès au socket est limité au service `gateway/` dans le même Docker network.
 
 ---
 
@@ -177,14 +203,14 @@ Mêmes recommandations que l'analyse initiale, adaptées à Rust :
 | # | Risque | Probabilité | Impact | Mitigation |
 |---|--------|-------------|--------|------------|
 | R1 | Socket Docker accessible = vecteur d'escalade | Élevée (si non mitigé) | Critique | `docker-socket-proxy` en MVP, Sysbox à terme |
-| R2 | WebSocket non supporté | Faible | Élevé | nginxify (nginx) gère WebSocket nativement |
+| R2 | WebSocket non supporté | Faible | Élevé | sozu gère HTTP Upgrade nativement |
 | R3 | Clonage Git bloquant le worker | Modérée | Modéré | Shallow clone + timeout configurable + worker dédié |
 | R4 | Absence de limites ressources container | Élevée | Élevé | Champs `NonZero` obligatoires dans HostConfig bollard |
 | R5 | Dépendance LLM sans abstraction | Modérée | Modéré | Trait `AiProviderAdapter` à implémenter dès Phase 0 |
 | R6 | Absence d'événements temps réel | Résolue | — | SSE Axum natif sur `/events` |
 | R7 | Volumes Docker orphelins | Élevée (long terme) | Modéré | Job Rust cron (`jobs:gc`) planifié via Redis Streams |
 | R8 | Multi-tenant data leak | Modérée | Critique | RLS PostgreSQL + filtre `organization_id` applicatif |
-| R9 | API nginxify non authentifiée | Modérée | Élevé | Shared secret ou mTLS entre Koda et nginxify |
+| R9 | Accès socket sozu non contrôlé | Faible | Élevé | Socket Unix local, accès limité au service gateway/ dans le même network Docker |
 
 ---
 
@@ -325,7 +351,8 @@ Client CLI Rust (binaire unique, distribuable) établissant un tunnel SSH vers l
 - PostgreSQL + sqlx-migrate + modèles de base (Workspace, User, Organization).
 - Axum skeleton : auth session + OAuth, endpoints `/api/v1/auth/*`.
 - Trait `AiProviderAdapter` (interface + implémentation Anthropic HTTP).
-- Docker Compose dev : api, dashboard, db, redis, docker-socket-proxy.
+- Docker Compose dev : api, dashboard, db, redis, docker-socket-proxy, sozu.
+- Service `gateway/` : client sozu-command-lib minimal (add/remove HttpFrontend).
 
 ### Phase 1 — Workspace minimal (semaines 5-10)
 - Création workspace + UID.
@@ -360,16 +387,18 @@ Client CLI Rust (binaire unique, distribuable) établissant un tunnel SSH vers l
 
 | Critère | Statut | Note |
 |---------|--------|------|
-| Stack compatible self-hosted VPS | ✅ | Docker Compose + nginxify + PostgreSQL |
+| Stack compatible self-hosted VPS | ✅ | Docker Compose + sozu + PostgreSQL |
 | Contrat API aligné entités métier | ✅ | Pagination cursor + SSE à implémenter |
 | Sécurité multi-tenant | ✅ | RLS PostgreSQL + filtre organization_id |
 | Migrations rollback-safe | ✅ | sqlx-migrate + expand/contract |
 | WCAG 2.1 AA dashboard | ✅ | shadcn/ui (Radix) accessible par défaut |
 | Budget hébergement plausible | ✅ | 75-180 EUR/mois réaliste pour MVP |
 | Isolation container | ⚠️ | docker-socket-proxy obligatoire + resource limits bollard |
-| WebSocket gateway | ✅ | nginxify (nginx) supporte nativement |
-| Port forwarding | ✅ | Géré nativement par nginxify |
+| WebSocket gateway | ✅ | sozu supporte HTTP Upgrade nativement |
+| Port forwarding HTTP | ✅ | sozu HttpFrontend + strip_prefix |
+| Port forwarding TCP (SSH, PgSQL) | ✅ | sozu TcpFrontend sur ports dédiés |
+| TLS / Let's Encrypt | ✅ | sozu intégré, aucune gestion applicative |
 | Volumes persistants formalisés | ✅ | Entité `WorkspaceVolume` ajoutée |
 | Health checks workspace | ✅ | Probe définie dans `PluginDefinition` |
-| Auth nginxify ↔ Koda | ⚠️ | Shared secret ou mTLS à définir |
+| Auth sozu ↔ Koda | ✅ | Socket Unix local, pas d'API réseau exposée |
 | LLM abstraction | ⚠️ | Trait `AiProviderAdapter` à implémenter Phase 0 |

@@ -3,7 +3,7 @@
 ## Règles pour les agents IA travaillant sur ce projet
 
 ### Contexte général
-Koda est une plateforme de workspaces de développement à la demande. Chaque workspace est un conteneur Docker isolé, accessible via `domain.com/[UID]/[service]`. Le routage et le path stripping sont gérés par **nginxify** (outil nginx existant avec API). Lire `MEMORY.md` et `docs/FEASIBILITY_ANALYSIS.md` avant toute modification.
+Koda est une plateforme de workspaces de développement à la demande. Chaque workspace est un conteneur Docker isolé, accessible via `domain.com/[UID]/[service]`. Le routage, le path stripping, TLS et les tunnels TCP sont gérés par **sozu** (reverse-proxy Rust). Le service `services/gateway/` est un client `sozu-command-lib` qui traduit les `ExposureRule` DB en commandes sozu. Lire `MEMORY.md` et `docs/FEASIBILITY_ANALYSIS.md` avant toute modification.
 
 ### Règles invariantes
 
@@ -38,10 +38,12 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 - DROP de colonne interdit sans délai de 2 semaines post-déprecation applicative
 - Tester `sqlx migrate revert` en staging avant merge
 
-**Gateway (nginxify)**
-- Créer/supprimer une `ExposureRule` = appel à l'API nginxify (jamais éditer nginx.conf directement)
-- Format attendu par nginxify : `{ uid, public_path, internal_host, internal_port, strip_prefix: true }`
-- Port forwarding ad-hoc géré par nginxify (pas d'implémentation custom)
+**Gateway (sozu via sozu-command-lib)**
+- Créer/supprimer une `ExposureRule` = commande sozu via `sozu-command-lib` (jamais éditer de fichier de config)
+- Routes HTTP : `AddHttpFrontend` avec `path_prefix = "/[UID]/[service]"` + `AddBackend` vers `internal_host:internal_port`
+- Routes TCP : `AddTcpFrontend` sur `host_port` dédié + `AddBackend` vers `internal_host:internal_port`
+- Plages de ports TCP réservées : SSH `2200-2999`, PostgreSQL `5400-5499` (stockées dans `ExposureRule.host_port`)
+- TLS géré par sozu — ne jamais gérer les certificats côté applicatif
 
 **Git Manager (Rust / git2)**
 - Clonage toujours asynchrone, statut mis à jour en DB à chaque transition
@@ -76,5 +78,6 @@ User → AuditEvent
 - Lancer un conteneur workspace sans `HostConfig.memory` et `HostConfig.pids_limit`
 - Accéder au socket Docker autrement que via docker-socket-proxy
 - Faire un `SELECT *` sur des tables métier sans filtre `organization_id`
-- Modifier les règles nginxify en éditant nginx.conf directement
+- Modifier les règles sozu en éditant des fichiers de config (toujours passer par sozu-command-lib)
+- Gérer les certificats TLS côté applicatif (sozu s'en charge)
 - Écrire du code Rust sans types pour les erreurs (`anyhow` pour les binaires, `thiserror` pour les libs)
