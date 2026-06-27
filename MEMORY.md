@@ -44,6 +44,7 @@ Koda est une plateforme de gestion d'environnements de développement à la dema
 | Interface admin | **`apps/admin/`** (Next.js séparé) + rôle `super_admin` (au-dessus de `owner`) + `KodaInstance` pour multi-instances | Section dans dashboard |
 | Workspace clôture | **Libre** — aucun blocage sur la phase `reviewing` | Revue obligatoire |
 | TCP port ranges | **SSH `2200-2999`**, **PostgreSQL `5400-5499`** (réservé dans sozu, stocké dans `ExposureRule.host_port`) | — |
+| Pré-prompts LLM | **6 couches hiérarchiques** (platform → org → lang packs → framework packs → workspace `KODA.md` → personal `ai/instructions.md`), assemblées indépendamment du LLM | Fichier `.claude` unique |
 
 ## Environnements
 
@@ -304,7 +305,7 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 ```
 .personal/
 ├── ai/
-│   ├── CLAUDE.md              # Instructions IA (style, préférences, langue)
+│   ├── instructions.md        # Instructions IA (style, préférences, langue) — LLM-agnostique
 │   ├── context.md             # Background : stack maîtrisé, domaines, expérience
 │   ├── coding-style.md        # Conventions personnelles, patterns préférés/à éviter
 │   ├── review-checklist.md    # Checklist de review envoyée à l'IA avant validation
@@ -312,6 +313,8 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 │       ├── quick.md
 │       ├── standard.md
 │       └── agent.md
+│   # Note : CLAUDE.md à la racine du repo reste supporté pour compatibilité Claude Code,
+│   # mais Koda lit instructions.md comme source de vérité LLM-agnostique.
 │
 ├── editor/
 │   ├── settings.json          # Monaco : font, tab size, word wrap, minimap, rulers
@@ -351,7 +354,7 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 **Fusion avec le workspace :**
 | Fichier | Priorité |
 |---------|----------|
-| `ai/CLAUDE.md` + fichiers ai/ | Workspace + personnel (additifs) |
+| `ai/instructions.md` + fichiers ai/ | Workspace + personnel (additifs, couche user) |
 | `.editorconfig` | Projet > personnel |
 | `.gitconfig` | Personnel (identité) + `.git/config` projet (remote) |
 | `env_defaults.json` | Personnel injecté, workspace peut surcharger |
@@ -359,6 +362,77 @@ Chaque utilisateur dispose d'un espace personnel portable qui voyage avec lui da
 | MCP bindings | Additifs (workspace + personnel) |
 
 **Règle de sécurité :** les fichiers `ai/` du PersonalSpace ne sont jamais loggués ni transmis hors du contexte LLM.
+
+## Pré-prompts LLM-agnostiques
+
+Koda construit le contexte envoyé au LLM indépendamment du provider (Anthropic, OpenAI, Ollama, Mistral…). L'`AiProviderAdapter` reçoit un contexte assemblé — il ne sait pas d'où viennent les instructions.
+
+### Hiérarchie des couches (ordre de concaténation)
+
+| Couche | Source | Modifiable par | Toujours chargé |
+|--------|--------|----------------|-----------------|
+| 1 — Platform prompt | Super admin (panel admin) | Super admin uniquement | Oui |
+| 2 — Org prompt | Admin org (panel admin) | Admin org | Oui |
+| 3 — Language packs | Packs Koda built-in (détection auto) | Admin org + user (override) | Si langage détecté |
+| 4 — Framework packs | Packs Koda built-in (détection auto) | Admin org + user (override) | Si framework détecté |
+| 5 — Workspace `KODA.md` | Fichier dans le repo (git) | Dev (commité) | Oui |
+| 6 — Personal `ai/instructions.md` | PersonalSpace user | Utilisateur | Oui |
+
+Le contexte final = concaténation ordonnée 1→6. Les couches supérieures sont lues en premier, les couches inférieures (plus spécifiques) ont la priorité sémantique.
+
+### Packs de langages et frameworks — détection automatique
+
+Au démarrage du workspace, le service `orchestrator` scanne les fichiers de manifeste du repo cloné et active les packs correspondants :
+
+| Fichier détecté | Packs activés |
+|----------------|---------------|
+| `Cargo.toml` | `rust` |
+| `Cargo.toml` + dep `axum` | `rust`, `axum` |
+| `Cargo.toml` + dep `sqlx` | `rust`, `sqlx` |
+| `package.json` | `typescript` |
+| `package.json` + dep `react` | `typescript`, `react` |
+| `next.config.*` | `typescript`, `react`, `nextjs` |
+| `requirements.txt` / `pyproject.toml` | `python` |
+| `go.mod` | `go` |
+| `*.sql` dans le repo | `sql` |
+
+Les packs sont **built-in non supprimables** (même logique que les ScanRule). Les orgs et utilisateurs peuvent les **enrichir** avec des instructions supplémentaires, jamais les désactiver complètement.
+
+### Contenu type d'un pack (exemple `rust.md`)
+
+```markdown
+## Rust — conventions Koda
+- Erreurs : `anyhow` pour les binaires, `thiserror` pour les libs
+- Async : tokio uniquement, pas de mixing runtimes
+- Unwrap : interdit hors tests — utiliser `?` ou `unwrap_or_else`
+- Logging : `tracing` avec champs structurés, jamais `println!` en prod
+- Types : préférer les newtypes pour les IDs métier (éviter `String` nu)
+```
+
+### Workspace `KODA.md`
+
+Fichier à la racine du repo, commité. Lu par Koda quel que soit le LLM configuré. Peut importer d'autres fichiers du repo :
+
+```markdown
+# KODA.md
+@docs/architecture.md
+@docs/conventions.md
+
+## Règles spécifiques à ce projet
+- Ne jamais modifier les migrations sans review du lead
+```
+
+**Compatibilité Claude Code :** si un `CLAUDE.md` existe à la racine, Claude Code le lit nativement. Koda lit `KODA.md`. Les deux peuvent coexister ou être symétriques.
+
+### Construction du contexte par niveau de prompt
+
+| Niveau | Couches incluses |
+|--------|-----------------|
+| Nano (auto-complétion) | 3+4 (language/framework packs) |
+| Quick (⌘K) | 3+4+6 (+ personal instructions) |
+| Standard (chat) | 1+2+3+4+5+6 (tout) |
+| Deep (analyse complète) | 1+2+3+4+5+6 + git history + CI |
+| Agent | 1+2+3+4+5+6 + outils MCP |
 
 ## Interface Administration (`apps/admin/`)
 

@@ -21,6 +21,10 @@
 - Workspace `reviewing` → clôture libre (pas de blocage obligatoire)
 - Backlog enrichi : KODA-B14 multi-instances avancé, KODA-B15 TicketRecord, KODA-B16 marketplace plugins
 - Fix mcp-gateway : `base64_encode` partagé (bug compilation `http.rs`), dead-letter, XGROUP CREATE, figment, UserMCPBinding TypeScript
+- Pré-prompts LLM-agnostiques : hiérarchie 6 couches (platform → org → lang packs → framework packs → `KODA.md` → `ai/instructions.md`)
+- Packs langue et framework built-in avec auto-détection depuis manifestes repo (Cargo.toml, package.json, etc.)
+- `KODA.md` : fichier workspace-level LLM-agnostique (distinct de `CLAUDE.md` pour Claude Code)
+- `ai/instructions.md` : renommage depuis `ai/CLAUDE.md` dans PersonalSpace
 - Analyse de faisabilité initiale (`docs/FEASIBILITY_ANALYSIS.md`)
 - Décisions architecturales : Rust (Axum + SQLx), sozu gateway, Harness CI/CD
 - Système de thèmes évolutif : `ThemeRegistry` observable, `SkinManifest` avec héritage `extends`, `loadFromUrl()` marketplace

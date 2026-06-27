@@ -110,7 +110,7 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [ ] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
   - [ ] Git config personnelle (`~/.personal/git/.gitconfig`) montée dans container
   - [ ] Panel "Mon espace" dans web-client : édition Monaco de tous les fichiers `.personal/`
-  - [ ] Fusion `ai/CLAUDE.md` personnel + workspace dans le contexte LLM
+  - [ ] Fusion `ai/instructions.md` personnel + workspace `KODA.md` dans le contexte LLM (6 couches)
   - [ ] `UserMCPBinding` : connecteurs MCP personnels
   - [ ] Snippets personnels disponibles dans Monaco
   - [ ] Notes par workspace (`notes/workspace-notes/<uid>.md`)
@@ -128,12 +128,19 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [ ] Injection tool definitions MCP dans le prompt LLM lors du chat IA
   - [ ] SecretRef : résolution credentials au moment du tool call, jamais loggé
   - [ ] `@koda/mcp-connectors` : registre TypeScript + 6 définitions built-in
+- [ ] **Pré-prompts LLM-agnostiques** :
+  - [ ] Packs langue built-in (`rust`, `typescript`, `python`, `go`, `sql`) — non supprimables
+  - [ ] Packs framework built-in (`axum`, `react`, `nextjs`, `sqlx`) — non supprimables
+  - [ ] Auto-détection packs depuis manifestes repo (`Cargo.toml`, `package.json`, `next.config.*`…)
+  - [ ] Context builder dans `orchestrator` : assemblage 6 couches par niveau de prompt
+  - [ ] Support `KODA.md` à la racine du repo (couche 5, LLM-agnostique)
 
 ### Critères de validation
 - Ouverture web-client → édition fichier → commit visible dans diff viewer
 - Chat IA → patch proposé → appliqué en un clic
 - `koda connect <uid>` établit une session SSH fonctionnelle
 - Activation connecteur GitHub → le chat IA peut lister les issues du repo
+- Workspace Rust → packs `rust` + `axum` auto-détectés → instructions Rust injectées dans le prompt
 
 ---
 

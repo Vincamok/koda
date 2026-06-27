@@ -163,6 +163,13 @@
 | KODA-115 | feature | `packages/shared-types/` : types TS partagés entre dashboard, web-client et admin | medium | open | KODA-001 |
 | KODA-116 | feature | `packages/api-client/` : client HTTP TypeScript généré depuis l'OpenAPI Koda | medium | open | KODA-101 KODA-115 |
 
+| KODA-117 | chore | PersonalSpace : renommer `ai/CLAUDE.md` → `ai/instructions.md` (LLM-agnostique) | medium | open | KODA-011 |
+| KODA-118 | feature | Packs langue built-in non supprimables : `rust`, `typescript`, `python`, `go`, `sql` | high | open | KODA-013 |
+| KODA-119 | feature | Packs framework built-in non supprimables : `axum`, `react`, `nextjs`, `sqlx` | high | open | KODA-118 |
+| KODA-120 | feature | Auto-détection packs depuis manifestes repo : `Cargo.toml`, `package.json`, `next.config.*`, `go.mod`… | high | open | KODA-118 KODA-041 |
+| KODA-121 | feature | Context builder dans `orchestrator` : assemblage 6 couches (platform→org→lang→framework→KODA.md→personal) par niveau de prompt | critical | open | KODA-118 KODA-120 |
+| KODA-122 | feature | Panel admin — gestion packs : vue built-in (lecture seule) + enrichissement org (instructions additives) | medium | open | KODA-103 KODA-107 KODA-118 |
+
 ---
 
 ## Backlog post-v1.0.0

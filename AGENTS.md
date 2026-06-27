@@ -58,9 +58,16 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 
 **PersonalSpace**
 - Le volume `koda-personal-<user-uid>` est monté read-only dans chaque workspace
-- Les fichiers `ai/` du PersonalSpace sont fusionnés avec le CLAUDE.md workspace dans le contexte LLM
+- Les fichiers `ai/` du PersonalSpace (`ai/instructions.md` + autres) sont fusionnés avec `KODA.md` workspace dans le contexte LLM (couches 5+6 de la hiérarchie pré-prompt)
 - Ne jamais logger le contenu des fichiers PersonalSpace
 - `UserMCPBinding` (personnel, DB uniquement) est distinct de `WorkspaceMCPBinding` (workspace) — pas de fichier mcp/bindings.json dans le PersonalSpace
+
+**Pré-prompts LLM-agnostiques**
+- Le fichier workspace-level est `KODA.md` (couche 5) — LLM-agnostique, commité dans le repo
+- Si un `CLAUDE.md` existe à la racine du repo, Claude Code le lit nativement — Koda lit `KODA.md`. Les deux peuvent coexister.
+- Ne jamais hardcoder des instructions dans le code : toujours passer par la hiérarchie 6 couches
+- Les packs langue/framework (couches 3+4) sont built-in non supprimables — les orgs peuvent seulement les enrichir
+- L'assemblage du contexte se fait dans le service `orchestrator`, avant l'appel à `AiProviderAdapter`
 
 **Sécurité — scans**
 - `SecurityAiConfig` dans `SecurityPolicy` : chaque org configure son propre provider/model/system_prompt sécurité
