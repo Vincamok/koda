@@ -1,0 +1,124 @@
+/*
+ * Base CSS — Koda Themes
+ * Définit les layouts selon data-layout et les variables appliquées par ThemeProvider.
+ * Ce fichier est importé une seule fois dans l'app (layout root).
+ */
+
+/* ─── Reset & Variables globales ─────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  font-family: var(--font-ui, system-ui, sans-serif);
+  font-size: var(--font-size-base, 14px);
+  line-height: var(--line-height, 1.6);
+  color-scheme: dark;
+  background: var(--background);
+  color: var(--foreground);
+}
+
+:root[data-color-mode='light'] {
+  color-scheme: light;
+}
+
+/* ─── Layout : sidebar-left (Default, Pro, Light) ────────────────────────── */
+
+:root[data-layout='sidebar-left'] .koda-workspace {
+  display: grid;
+  grid-template-columns: var(--sidebar-width, 260px) 1fr var(--ai-sidebar-width, 340px);
+  grid-template-rows: auto 1fr var(--panel-min-height, 180px) auto;
+  grid-template-areas:
+    "titlebar   titlebar   titlebar"
+    "sidebar    editor     ai-sidebar"
+    "sidebar    terminal   ai-sidebar"
+    "statusbar  statusbar  statusbar";
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ─── Layout : top-nav (Minimal) ─────────────────────────────────────────── */
+
+:root[data-layout='top-nav'] .koda-workspace {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr var(--panel-min-height, 200px) auto;
+  grid-template-areas:
+    "topnav"
+    "editor"
+    "terminal"
+    "statusbar";
+  height: 100dvh;
+  overflow: hidden;
+}
+
+:root[data-layout='top-nav'] .koda-sidebar,
+:root[data-layout='top-nav'] .koda-ai-sidebar {
+  /* Panneaux en overlay, ouverts à la demande */
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 50;
+  transition: transform 0.2s ease;
+}
+
+:root[data-layout='top-nav'] .koda-sidebar {
+  left: 0;
+  width: var(--sidebar-width, 240px);
+  transform: translateX(-100%);
+}
+
+:root[data-layout='top-nav'] .koda-sidebar[data-open='true'] {
+  transform: translateX(0);
+}
+
+:root[data-layout='top-nav'] .koda-ai-sidebar {
+  right: 0;
+  width: var(--ai-sidebar-width, 320px);
+  transform: translateX(100%);
+}
+
+:root[data-layout='top-nav'] .koda-ai-sidebar[data-open='true'] {
+  transform: translateX(0);
+}
+
+/* ─── Zones nommées ──────────────────────────────────────────────────────── */
+
+.koda-titlebar   { grid-area: titlebar;   background: var(--background-secondary); }
+.koda-topnav     { grid-area: topnav;     background: var(--background-secondary); }
+.koda-sidebar    { grid-area: sidebar;    background: var(--sidebar-background);   overflow-y: auto; }
+.koda-editor     { grid-area: editor;     background: var(--editor-background);    overflow: hidden; }
+.koda-terminal   { grid-area: terminal;   background: var(--terminal-background);  overflow: hidden; }
+.koda-ai-sidebar { grid-area: ai-sidebar; background: var(--ai-sidebar-background); overflow-y: auto; }
+.koda-statusbar  { grid-area: statusbar;  background: var(--statusbar-background); height: 22px; }
+
+/* ─── Densité ────────────────────────────────────────────────────────────── */
+
+:root[data-density='compact']     { --spacing-1: 2px;  --spacing-2: 4px;  --spacing-3: 8px;  }
+:root[data-density='comfortable'] { --spacing-1: 4px;  --spacing-2: 8px;  --spacing-3: 12px; }
+:root[data-density='spacious']    { --spacing-1: 6px;  --spacing-2: 12px; --spacing-3: 16px; }
+
+/* ─── Typographie code ───────────────────────────────────────────────────── */
+
+code, pre, .koda-terminal, .monaco-editor {
+  font-family: var(--font-code, monospace) !important;
+}
+
+/* ─── Scrollbars ─────────────────────────────────────────────────────────── */
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--foreground-subtle); }
+
+/* ─── Focus visible (WCAG 2.1 AA) ───────────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
