@@ -1,0 +1,63 @@
+# sozu reverse proxy config for local dev + staging
+# Production clusters use dynamic configuration via sozu-command-lib (services/gateway)
+
+[command_socket]
+path = "/var/run/sozu/sozu.sock"
+backlog = 100
+
+[log]
+level = "info"
+
+# ── Frontends ──────────────────────────────────────────────────────────────────
+
+[[frontends]]
+address = "0.0.0.0:80"
+hostname = "koda.local"
+path_begin = "/"
+
+[[frontends]]
+address = "0.0.0.0:80"
+hostname = "api.koda.local"
+path_begin = "/api"
+
+[[frontends]]
+address = "0.0.0.0:80"
+hostname = "admin.koda.local"
+path_begin = "/"
+
+# ── Backends ───────────────────────────────────────────────────────────────────
+
+[[backends]]
+cluster_id = "dashboard"
+backend_id = "dashboard-1"
+address = "127.0.0.1:3001"
+
+[[backends]]
+cluster_id = "api"
+backend_id = "api-1"
+address = "127.0.0.1:8080"
+
+[[backends]]
+cluster_id = "admin"
+backend_id = "admin-1"
+address = "127.0.0.1:3002"
+
+# ── Clusters ───────────────────────────────────────────────────────────────────
+
+[[clusters]]
+cluster_id = "dashboard"
+protocol = "HTTP"
+sticky_session = false
+send_proxy = false
+
+[[clusters]]
+cluster_id = "api"
+protocol = "HTTP"
+sticky_session = true   # session cookies — route same client to same pod
+send_proxy = false
+
+[[clusters]]
+cluster_id = "admin"
+protocol = "HTTP"
+sticky_session = false
+send_proxy = false
