@@ -8,13 +8,14 @@ test.use({
 const LOCALE = 'fr'
 
 test.describe('Workspace lifecycle', () => {
+  test.describe.configure({ mode: 'serial' })
   let workspaceId: string
 
   test('create workspace', async ({ page }) => {
     await page.goto(`/${LOCALE}/workspaces/new`)
 
     // Fill the creation form
-    await page.getByLabel(/nom du workspace|workspace name/i).fill('E2E Test Workspace')
+    await page.getByLabel(/^nom$|workspace name/i).fill('E2E Test Workspace')
 
     const submitBtn = page.getByRole('button', { name: /créer|create/i })
     await submitBtn.click()

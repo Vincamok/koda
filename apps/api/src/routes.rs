@@ -10,6 +10,7 @@ use utoipa_swagger_ui::SwaggerUi;
 use crate::{
     handlers::{admin, auth, ide, mfa, orgs, personal, pipelines, teams, tokens, user_settings, workspaces},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
+    middleware::rate_limit::rate_limit_middleware,
     middleware::request_id::request_id_layer,
     openapi::ApiDoc,
     AppState,
@@ -116,6 +117,7 @@ where
         .merge(authenticated)
         .merge(org_scoped)
         .merge(admin_routes)
+        .layer(middleware::from_fn_with_state(state.clone(), rate_limit_middleware))
         .layer(session_layer)
         .layer(middleware::from_fn(request_id_layer))
         .with_state(state)

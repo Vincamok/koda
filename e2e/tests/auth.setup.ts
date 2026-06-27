@@ -1,4 +1,5 @@
 import { test as setup, expect } from '@playwright/test'
+import fs from 'fs'
 import path from 'path'
 
 const AUTH_FILE = path.join(__dirname, '../.auth/user.json')
@@ -16,5 +17,6 @@ setup('authenticate', async ({ page }) => {
   // Wait for redirect to dashboard or workspaces
   await expect(page).toHaveURL(/\/(dashboard|workspaces)/, { timeout: 10_000 })
 
+  fs.mkdirSync(path.dirname(AUTH_FILE), { recursive: true })
   await page.context().storageState({ path: AUTH_FILE })
 })
