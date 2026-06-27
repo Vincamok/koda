@@ -1,13 +1,21 @@
 # Analyse de Faisabilité — Koda
 
 > Date : 2026-06-27  
-> Version specs analysée : SPECIFICATIONS.md (22 étapes)
+> Version specs analysée : SPECIFICATIONS.md (22 étapes)  
+> Révision stack : 2026-06-27 (Rust backend + nginxify)
 
 ---
 
 ## 1. Résumé exécutif
 
-Koda est un système de gestion d'environnements de développement à la demande, comparable conceptuellement à Gitpod, Coder ou DevPod, mais auto-hébergé sur VPS. L'ambition est réaliste pour un MVP en 6-9 mois avec une équipe de 2-4 développeurs, à condition de prioriser rigoureusement le périmètre et d'adresser plusieurs risques techniques identifiés ci-dessous.
+Koda est un système de gestion d'environnements de développement à la demande, comparable conceptuellement à Gitpod, Coder ou DevPod, mais auto-hébergé sur VPS. L'ambition est réaliste pour un MVP en 6-9 mois avec une équipe de 2-4 développeurs.
+
+**Stack retenue :**
+- Backend API + Workers : **Rust** (Axum + SQLx + tokio + bollard)
+- Gateway : **nginxify** (outil existant, nginx + API dynamique)
+- Frontend : **Next.js** + TypeScript + shadcn/ui + Tailwind
+- BDD : **PostgreSQL** + sqlx-migrate
+- Queue : **Redis Streams** (consumer groups Rust)
 
 **Verdict global : faisable, avec des zones de risque localisées et surmontables.**
 
@@ -15,71 +23,102 @@ Koda est un système de gestion d'environnements de développement à la demande
 
 ## 2. Analyse par couche
 
-### 2.1 Gateway / Reverse-Proxy dynamique
+### 2.1 Gateway / Reverse-Proxy dynamique — nginxify
 
-**Faisabilité : ✅ Élevée**
+**Faisabilité : ✅ Élevée (outil existant)**
 
-Le routage par UID avec Path Stripping est un pattern standard. Cependant, implémenter un reverse-proxy maison (mentionné comme "reverse-proxy dynamique") représente un effort disproportionné.
+Le routage par UID avec Path Stripping est assuré par **nginxify**, un outil nginx-based avec API dynamique déjà construit. Cela élimine le risque d'implémentation d'un proxy custom et couvre nativement :
+- Routing dynamique par UID via API (création/suppression de routes sans reload nginx)
+- Path Stripping avant transmission au container
+- WebSocket : nginx gère `Upgrade` / `Connection` nativement via `proxy_pass`
+- Port forwarding à la demande : inclus dans nginxify
 
-**Risque identifié :** Un reverse-proxy custom devra gérer les WebSockets (obligatoire pour code-server / VSCode Browser, JetBrains Gateway, terminaux xterm.js). C'est non-trivial et source de bugs subtils.
+**Intégration Koda → nginxify :**
+L'API Control Plane appelle l'API nginxify à chaque changement d'`ExposureRule`. Le format d'appel attendu :
+```json
+{ "uid": "...", "public_path": "/[UID]/app", "internal_host": "172.17.0.X", "internal_port": 3000, "strip_prefix": true }
+```
 
-**Recommandation :** Utiliser **Traefik v3** comme Gateway plutôt qu'une implémentation custom.
-- Routing dynamique via API REST ou labels Docker sans rechargement.
-- Path Stripping natif (`StripPrefix` middleware).
-- WebSocket transparent sans configuration supplémentaire.
-- Tableau de bord intégré (visibilité immédiate des routes actives).
-- TLS automatique via Let's Encrypt.
-
-L'API Control Plane met à jour les routes Traefik via son API provider HTTP ou Redis, sans redémarrage.
+**Point d'attention :** Définir la stratégie d'authentification des appels API entre Koda et nginxify (shared secret ou mTLS) pour éviter qu'un tiers puisse créer des routes arbitraires.
 
 ---
 
 ### 2.2 Orchestrateur (cycle de vie des workspaces)
 
-**Faisabilité : ⚠️ Modérée — risque principal du projet**
+**Faisabilité : ✅ Élevée en Rust**
 
-La gestion des conteneurs Docker depuis un service applicatif est réalisable via le **SDK Docker Python** (`docker-py`). Mais la spec interdit le Docker-in-Docker (DinD), ce qui est la bonne décision. Cela implique que l'orchestrateur accède au socket Docker de l'hôte.
+Le crate **bollard** fournit un client Docker API async natif Rust (tokio). Il couvre toutes les opérations nécessaires : `create_container`, `start_container`, `stop_container`, `inspect_container`, `remove_container`, `create_volume`, `remove_volume`.
 
-**Risque critique : socket Docker = accès root équivalent.**
-Tout processus ayant accès à `/var/run/docker.sock` peut obtenir les droits root sur l'hôte hôte. Si l'API est compromise, toute l'infrastructure l'est.
+**Avantage Rust ici :** la compilation typée garantit que les `HostConfig` (limites ressources) sont correctement formés avant envoi à Docker. Un oubli de `memory` ou `pids_limit` est une erreur de compilation si les champs sont `NonZero`.
+
+**Risque critique inchangé : socket Docker = accès root équivalent.**
 
 **Recommandations :**
-1. **Court terme MVP :** Isoler l'orchestrateur dans un conteneur dédié avec accès restreint au socket (via proxy `docker-socket-proxy` qui filtre les API autorisées).
-2. **Moyen terme :** Évaluer **Podman rootless** ou le runtime **Sysbox** pour une isolation réelle sans socket root.
-3. **Définir des limites de ressources obligatoires** sur chaque conteneur workspace (CPU, RAM, PID) via les paramètres Docker — absent des specs actuelles.
-
-**Absence dans les specs :** La gestion du cycle de vie des **volumes Docker** (création, montage, nettoyage) n'est pas formalisée. Proposer une entité `WorkspaceVolume` (voir section 6).
+1. **MVP :** Intercaler `docker-socket-proxy` (Tecnativa) entre bollard et le daemon. Whitelist : `containers/`, `volumes/`, `images/` (lecture seule). Aucun accès aux `networks` hôte ni aux `swarm`.
+2. **Moyen terme :** Évaluer Podman rootless ou Sysbox pour isolation sans socket root.
+3. **Resource limits obligatoires** via `HostConfig` bollard :
+   ```rust
+   HostConfig {
+       memory: Some(512 * 1024 * 1024),  // 512 MB
+       cpu_period: Some(100_000),
+       cpu_quota: Some(50_000),           // 50% d'un core
+       pids_limit: Some(256),
+       ..Default::default()
+   }
+   ```
 
 ---
 
-### 2.3 Gestionnaire Git (Data & Config)
+### 2.3 Gestionnaire Git (Rust / git2)
 
 **Faisabilité : ✅ Élevée**
 
-Le clonage asynchrone avec machine d'états (`pending → cloning → ready | failed`) est un pattern solide. `GitPython` ou `pygit2` couvrent les besoins.
+Le crate **git2** (bindings libgit2) couvre clone, fetch, checkout, diff, branch management. C'est la même lib sous-jacente que GitPython.
 
 **Points à clarifier :**
-- **Taille des dépôts** : un monorepo de 20 Go bloquera un worker Celery longtemps. Prévoir un timeout configurable et un shallow clone optionnel (`--depth 1`).
-- **Credentials SSH** : les clés SSH injectées via `SecretRef` doivent être écrites temporairement sur disque dans un répertoire à permissions restreintes, puis supprimées après le clone. Documenter ce flux précisément.
-- **Branches éphémères** : la spec mentionne des branches éphémères pour les pipelines CI/CD. Formaliser : création automatique au démarrage du pipeline (`pipeline/<uid>/<timestamp>`), suppression après merge/rejet.
+- **Repos volumineux :** prévoir shallow clone (`git2::FetchOptions::depth(1)`) avec option de clone complet configurable par workspace.
+- **Credentials SSH :** les clés injectées via `SecretRef` sont écrites dans un répertoire tmpfs (`/run/secrets/<workspace_id>/`) avec permissions `0600`, supprimées après le clone via un guard RAII Rust (`impl Drop`).
+- **Branches éphémères pipeline :** créées automatiquement (`pipeline/<uid>/<timestamp>`), supprimées après merge/rejet par le worker.
 
 ---
 
-### 2.4 API Control Plane (FastAPI)
+### 2.4 API Control Plane (Rust / Axum)
 
 **Faisabilité : ✅ Élevée**
 
-FastAPI + Pydantic + SQLAlchemy est une stack mature et bien adaptée. Les choix sont cohérents.
+Axum est le framework HTTP Rust le plus adapté : async natif tokio, extracteurs typés, middleware `tower`, excellente gestion des erreurs avec `thiserror`.
+
+**Crates recommandés :**
+| Besoin | Crate |
+|--------|-------|
+| HTTP framework | `axum` |
+| Async runtime | `tokio` |
+| PostgreSQL async | `sqlx` |
+| Sérialisation | `serde` + `serde_json` |
+| Validation | `validator` |
+| Auth JWT | `jsonwebtoken` |
+| Sessions cookie | `tower-sessions` + `axum-sessions` |
+| Redis | `redis` (async feature) |
+| HTTP client (LLM, webhooks) | `reqwest` |
+| Docker API | `bollard` |
+| Git | `git2` |
+| Erreurs lib | `thiserror` |
+| Erreurs bin | `anyhow` |
+| Logs structurés | `tracing` + `tracing-subscriber` |
+| OpenTelemetry | `opentelemetry` + `tracing-opentelemetry` |
 
 **Points de vigilance :**
 
-1. **Versioning API :** `/api/v1/` est prévu, bien. Prévoir dès le départ les conventions de dépréciation (`Sunset` header HTTP).
+1. **Pas de macro-ORM :** SQLx valide les requêtes SQL à la compilation (`query!` macro). Aucune magie cachée, les requêtes sont lisibles et auditables.
 
-2. **Pagination manquante** dans les endpoints listés. `GET /api/v1/workspaces` sans cursor ou offset deviendra problématique à 35 000 workspaces/mois (horizon 2 ans).
+2. **Pagination cursor-based** obligatoire sur tous les endpoints de liste dès le départ. Schema :
+   ```json
+   { "data": [...], "meta": { "next_cursor": "...", "has_more": true } }
+   ```
 
-3. **Webhooks entrants** (pour `on_push` AutomationTrigger) : la spec mentionne la signature obligatoire, mais pas la queue de retry en cas d'échec de traitement. Prévoir un stockage temporaire des events webhook avec TTL.
+3. **SSE temps réel :** Axum supporte nativement `axum::response::Sse`. Endpoint `GET /api/v1/workspaces/:uid/events` diffuse les transitions de statut et logs pipeline sans polling.
 
-4. **Event streaming :** Les clients dashboard ont besoin de mises à jour en temps réel (statut workspace, logs pipeline). La spec ne définit pas ce canal. Recommandation : **Server-Sent Events (SSE)** sur `/api/v1/workspaces/:uid/events` — plus simple que WebSocket, natif HTTP/2, sans état serveur.
+4. **Webhooks entrants :** vérification HMAC-SHA256 de la signature en middleware avant tout traitement. L'event est stocké dans `incoming_webhook_events` (TTL 7j) puis traité par un worker Redis Streams.
 
 ---
 
@@ -89,29 +128,47 @@ FastAPI + Pydantic + SQLAlchemy est une stack mature et bien adaptée. Les choix
 
 Next.js + shadcn/ui + Tailwind est une combinaison solide et accessible. La cible WCAG 2.1 AA est atteignable avec shadcn/ui (composants Radix sous-jacents, accessibles par défaut).
 
-**Risque UX identifié :** Le flux en 8 étapes séquentielles peut être perçu comme lourd pour une première création. Recommander un **mode "quick-start"** où étapes 4 et 5 sont post-pontées, avec un bandeau de progression non bloquant.
+**Points pratiques :**
+- Générer le client TypeScript depuis le schéma OpenAPI Rust (via `utoipa` + `openapi-typescript`) pour éviter toute désynchronisation types frontend/backend.
+- SSE consommé via `EventSource` natif browser — pas de lib externe nécessaire.
+- Mode "quick-start" au premier workspace : étapes 4 et 5 optionnelles, postposées, avec bandeau de progression non bloquant.
 
 ---
 
-### 2.6 Task Runner (Celery + Redis)
+### 2.6 Workers / Task Runner (Rust + Redis Streams)
 
 **Faisabilité : ✅ Élevée**
 
-Celery + Redis est la combinaison standard Python pour les tâches asynchrones. Bien adapté aux pipelines CI/CD.
+Remplace Celery par des **workers Rust** consommant des **Redis Streams** avec consumer groups. Avantages :
+- Même runtime tokio que l'API : pas de langage secondaire à maintenir.
+- Redis Streams offre persistence native, replay, dead-letter intégré.
+- Garantie "at-least-once" via `XACK` après traitement réussi.
 
-**Point d'attention :** À 500 000 jobs/mois (horizon 2 ans), Redis comme broker peut montrer ses limites de persistence. Envisager la migration vers **Redis Streams** (persistence native) ou **RabbitMQ** si les garanties "at-least-once" deviennent critiques. Ce n'est pas urgent pour le MVP.
+**Architecture du worker :**
+```
+Redis Stream: jobs:workspace (create, start, stop, clone)
+Redis Stream: jobs:pipeline  (build, lint, security)
+Redis Stream: jobs:gateway   (expose, unexpose routes nginxify)
+Redis Stream: jobs:dead_letter (échecs après 3 tentatives)
+```
+
+**Intégration LLM :** les pipelines IA appellent l'API LLM via `reqwest` + trait `AiProviderAdapter`. Pas de SDK LLM Rust officiel — l'API HTTP Anthropic/OpenAI est suffisante avec des structs `serde`.
+
+**Point d'attention à 500k jobs/mois (horizon 2 ans) :** Redis Streams scale bien à ce volume sans changement d'architecture. La seule contrainte est la politique de rétention des streams (`MAXLEN`).
 
 ---
 
 ### 2.7 Authentification
 
-**Faisabilité : ✅ Élevée avec nuance**
+**Faisabilité : ✅ Élevée**
 
-Le schéma est complet (session cookie, OAuth, OTP). Deux points à clarifier :
+Mêmes recommandations que l'analyse initiale, adaptées à Rust :
 
-1. **OTP email vs TOTP :** "OTP email" a une latence de livraison variable (2-30s). Pour le mode MFA, préférer **TOTP via application** (Google Authenticator, Authy) avec l'email comme fallback. Les deux coexistent proprement avec une colonne `totp_secret` nullable.
+1. **TOTP via app (Google Authenticator, Authy)** préféré à l'OTP email pour le MFA — latence nulle, pas de dépendance SMTP. Crate : `totp-rs`. Email OTP en fallback uniquement.
 
-2. **Rotation des tokens M2M :** La spec mentionne "token court avec rotation" mais sans détailler le mécanisme. Recommander **RFC 7009 (token revocation)** + **refresh token stocké en DB hashé**.
+2. **Rotation tokens M2M :** JWT court (15min) + refresh token hashé en DB (argon2 via crate `argon2`). Révocation via table `revoked_tokens` + check Redis pour hot path.
+
+3. **Sessions cookie :** `HttpOnly` + `SameSite=Strict` + `Secure`. Stockage serveur-side dans Redis (pas JWT côté dashboard admin).
 
 ---
 
@@ -120,23 +177,22 @@ Le schéma est complet (session cookie, OAuth, OTP). Deux points à clarifier :
 | # | Risque | Probabilité | Impact | Mitigation |
 |---|--------|-------------|--------|------------|
 | R1 | Socket Docker accessible = vecteur d'escalade | Élevée (si non mitigé) | Critique | `docker-socket-proxy` en MVP, Sysbox à terme |
-| R2 | WebSocket non supporté par la gateway custom | Élevée | Élevé | Adopter Traefik v3 |
-| R3 | Clonage Git bloquant le worker | Modérée | Modéré | Timeout + shallow clone + worker dédié |
-| R4 | Absence de limites ressources container | Élevée | Élevé | Imposer CPU/RAM/PID limits dès le MVP |
-| R5 | Dépendance LLM sans abstraction | Modérée | Modéré | `AiProviderAdapter` mentionné dans spec — à implémenter dès le début |
-| R6 | Absence d'événements temps réel côté client | Élevée | Modéré | SSE sur l'API, sinon polling agressif |
-| R7 | Volumes Docker orphelins | Élevée (long terme) | Modéré | Garbage collector planifié (Celery beat) |
-| R8 | Multi-tenant data leak par oubli de filtre | Modérée | Critique | Row Level Security PostgreSQL en complément des filtres applicatifs |
+| R2 | WebSocket non supporté | Faible | Élevé | nginxify (nginx) gère WebSocket nativement |
+| R3 | Clonage Git bloquant le worker | Modérée | Modéré | Shallow clone + timeout configurable + worker dédié |
+| R4 | Absence de limites ressources container | Élevée | Élevé | Champs `NonZero` obligatoires dans HostConfig bollard |
+| R5 | Dépendance LLM sans abstraction | Modérée | Modéré | Trait `AiProviderAdapter` à implémenter dès Phase 0 |
+| R6 | Absence d'événements temps réel | Résolue | — | SSE Axum natif sur `/events` |
+| R7 | Volumes Docker orphelins | Élevée (long terme) | Modéré | Job Rust cron (`jobs:gc`) planifié via Redis Streams |
+| R8 | Multi-tenant data leak | Modérée | Critique | RLS PostgreSQL + filtre `organization_id` applicatif |
+| R9 | API nginxify non authentifiée | Modérée | Élevé | Shared secret ou mTLS entre Koda et nginxify |
 
 ---
 
-## 4. Incohérences et lacunes dans les specs
+## 4. Lacunes dans les specs (toutes confirmées à corriger)
 
 ### 4.1 Entité manquante : `WorkspaceVolume`
 
-Les volumes Docker (données persistantes du workspace) ne sont pas modélisés. Un workspace peut être détruit et recréé, mais ses données doivent survivre. Sans entité dédiée, le nettoyage est impossible à piloter proprement.
-
-**Proposition :**
+Les volumes Docker (données persistantes) ne sont pas modélisés dans les specs. Proposition actée :
 ```
 WorkspaceVolume {
   id, workspace_id, volume_name (Docker), size_mb, created_at,
@@ -144,164 +200,159 @@ WorkspaceVolume {
 }
 ```
 
-### 4.2 Manque de définition : ressources container
+### 4.2 Limites de ressources container
 
-Aucune spec de limites de ressources par workspace ou par organisation. Sans ça, un workspace peut consommer tout le CPU de l'hôte.
-
-**Proposition :** Ajouter à `Template` ou `WorkspacePluginBinding` :
+Ajouter à `Template` :
 ```
-cpu_limit (millicores), memory_limit_mb, pid_limit, storage_limit_gb
+cpu_millicores INT NOT NULL DEFAULT 500,
+memory_mb INT NOT NULL DEFAULT 512,
+pid_limit INT NOT NULL DEFAULT 256,
+storage_gb INT NOT NULL DEFAULT 10
 ```
 
-### 4.3 Ambiguïté : `PluginDefinition` vs `Template`
+### 4.3 Clarification Template vs Plugin
 
-Les specs distinguent Template (image Docker / runtime) et Plugin (outil d'accès), mais le déclenchement du conteneur semble lié au plugin (`WorkspacePluginBinding déclenche le provisioning container`). C'est une confusion : le conteneur doit être lancé avec l'image du Template ET configuré pour le Plugin.
+- **Template** : image Docker + runtime (ex: `ubuntu:22.04-node18`). Définit les ressources.
+- **Plugin** : outil d'accès installé dans le container issu du Template (code-server, JetBrains, SSH). Génère les `ExposureRule`.
+- Le container est instancié depuis l'image du **Template**, configuré pour le **Plugin**.
 
-**Clarification :** Le conteneur est instancié depuis l'image du `Template`, le `Plugin` y est installé/activé, les `ExposureRule` sont créées depuis le Plugin.
+### 4.4 Queue d'events webhooks entrants
 
-### 4.4 Webhook entrant sans stockage d'event
+Table `incoming_webhook_events` (TTL 7j) pour stockage avant traitement. Signature HMAC-SHA256 vérifiée en middleware Axum avant insertion.
 
-Le trigger `on_push` reçoit un webhook Git. Si le système est momentanément surchargé, l'event est perdu. La spec ne prévoit pas de queue d'events entrants.
+### 4.5 Health probe par plugin
 
-**Proposition :** Ajouter une table `IncomingWebhookEvent` (TTL 7 jours) pour stockage avant traitement par le worker.
-
-### 4.5 Absence de stratégie de health check
-
-Rien ne définit comment la plateforme détecte qu'un workspace est réellement prêt (vs. juste "conteneur démarré"). Le conteneur peut démarrer mais le service interne (code-server, JetBrains) peut mettre 15-30s de plus.
-
-**Proposition :** Mécanisme de health probe configurable par plugin (`GET /healthz` sur le port interne, timeout configurable), avec polling du worker jusqu'à succès ou timeout global.
+Chaque `PluginDefinition` définit :
+```
+health_probe_path TEXT,     -- ex: "/healthz"
+health_probe_port INT,      -- port interne à sonder
+health_probe_timeout_s INT  -- ex: 60
+```
+Le worker poll jusqu'à succès ou timeout avant de passer le workspace en `running`.
 
 ---
 
-## 5. Améliorations de l'architecture proposées
+## 5. Améliorations de l'architecture
 
 ### 5.1 Row Level Security PostgreSQL
+RLS activé sur `workspaces`, `cicd_pipelines`, `tickets`, `audit_events`. Double filet contre les bugs de filtre applicatif.
 
-En complément des filtres `WHERE organization_id = ?` applicatifs, activer le RLS PostgreSQL sur les tables critiques (`workspaces`, `cicd_pipelines`, `tickets`, `audit_events`). Double filet de sécurité contre les bugs de filtre applicatif.
+### 5.2 OpenTelemetry dès Phase 0
+`tracing` + `tracing-opentelemetry` dans chaque service Rust. Export OTLP vers Jaeger self-hosted. Coût d'ajout initial quasi nul, coût de retrofit élevé.
 
-### 5.2 OpenTelemetry dès le départ
+### 5.3 Bus d'events interne Redis Streams
+Chaque transition d'état publie un event (`workspace.started`, `pipeline.completed`). Les workers et l'API SSE consomment depuis ces streams. Pas de polling DB.
 
-Instrumenter chaque service (FastAPI, Celery workers, Gateway) avec **OpenTelemetry** dès le MVP. Le coût est faible à l'ajout initial, exorbitant en retrofit. Exporter vers Jaeger (self-hosted) ou OTLP compatible.
+### 5.4 SSE pour temps réel dashboard
+`GET /api/v1/workspaces/:uid/events` (Axum `Sse`). Le dashboard s'abonne via `EventSource`. Pas de WebSocket côté API nécessaire.
 
-### 5.3 Architecture événementielle interne
+### 5.5 Support `devcontainer.json`
+Lire `.devcontainer/devcontainer.json` dans le repo cloné pour pré-remplir Template et Plugin. Compatibilité avec VS Code Dev Containers et milliers de repos existants.
 
-Utiliser **Redis Pub/Sub** (ou un bus d'events interne) pour la communication entre l'orchestrateur et l'API, plutôt que du polling DB. L'API émet un event `workspace.started`, le worker Celery l'écoute et met à jour la gateway.
+### 5.6 `docker-socket-proxy` obligatoire MVP
+Whitelist API Docker : `POST /containers/create`, `POST /containers/{id}/start`, `POST /containers/{id}/stop`, `DELETE /containers/{id}`, `GET /containers/{id}/json`, `POST /volumes/create`, `DELETE /volumes/{name}`. Rien d'autre.
 
-### 5.4 SSE pour les mises à jour temps réel
-
-Endpoint `GET /api/v1/workspaces/:uid/events` en Server-Sent Events. Le dashboard s'abonne et reçoit les transitions de statut, les logs de pipeline, les alertes — sans polling ni WebSocket complexe.
-
-### 5.5 Workspace `devcontainer.json` natif
-
-Supporter le standard **Dev Container Spec** (`.devcontainer/devcontainer.json`) comme source de configuration du Template/Plugin. Permet la compatibilité avec VS Code Dev Containers et des milliers de repos existants déjà configurés.
-
-### 5.6 `docker-socket-proxy` obligatoire en MVP
-
-Le service orchestrateur ne doit JAMAIS avoir accès au socket Docker brut. Intercaler **Tecnativa/docker-socket-proxy** qui filtre les appels API Docker à la liste blanche (create, start, stop, exec, inspect containers — pas d'accès aux images système ni aux réseaux hôte).
-
-### 5.7 Alembic : conventions de migration renforcées
-
-Ajouter à la convention existante :
-- Chaque migration doit avoir un `downgrade()` non-destructif.
-- Les migrations de colonnes NOT NULL doivent passer par expand/contract sur 3 déploiements.
-- Une migration ne peut pas DROP une colonne sans un délai de 2 semaines après déprecation applicative.
+### 5.7 Migrations sqlx-migrate — conventions renforcées
+- Nommage : `YYYYMMDDHHMM_<objet>_<action>.sql`
+- Chaque migration `.up.sql` accompagnée d'un `.down.sql` non-destructif
+- Colonne NOT NULL : expand (nullable) → backfill → contract (NOT NULL) sur 3 déploiements
+- DROP de colonne interdit avant 2 semaines de déprecation applicative
 
 ---
 
 ## 6. Nouvelles fonctionnalités proposées
 
-### 6.1 Port Forwarding à la demande (MVP+)
+### 6.1 Webhook Inbox par workspace *(port forwarding géré par nginxify)*
 
-Permettre aux utilisateurs d'exposer des ports supplémentaires depuis l'intérieur du workspace, sans redémarrage. L'ExposureRule est créée dynamiquement via l'API.
+Chaque workspace reçoit une URL `https://domain.com/[UID]/webhook/[TOKEN]` qui capture les webhooks entrants et les affiche dans le dashboard avec corps complet. Pas de ngrok nécessaire. Stocké dans `incoming_webhook_events`.
 
-Interface : bandeau dans le dashboard "Exposer le port X" → URL publique générée instantanément via `/[UID]/port/[PORT]`.
+### 6.2 Workspace Forking
 
-### 6.2 Webhook Inbox par workspace
+Nouveau workspace depuis l'état courant d'un existant : copie du volume Docker, même branche Git, même PluginBinding. Cas d'usage : expérimentation sans risque, pair programming isolé.
 
-Chaque workspace reçoit une URL unique `https://domain.com/[UID]/webhook/[TOKEN]` qui capture les webhooks entrants (GitHub, Stripe, Slack...) et les rend consultables dans le dashboard avec le corps complet. Idéal pour déboguer des intégrations sans ngrok.
+### 6.3 Env Manager (Variables d'environnement UI)
 
-### 6.3 Workspace Forking
+Éditeur visuel des variables du workspace :
+- Champs masqués pour secrets.
+- Diff vs valeurs Template par défaut.
+- Import `.env` local (parsé côté client, jamais envoyé brut).
 
-Créer un nouveau workspace depuis l'état courant d'un workspace existant : clone du volume, même branche Git, mêmes ExposureRules. Cas d'usage : expérimentation sans risque, pair programming isolé.
+### 6.4 Terminaux partagés (xterm.js + WebSocket)
 
-### 6.4 Environnement Variables UI (Env Manager)
+Terminaux multiplexés WebSocket (nginx supporte nativement via nginxify), sessions nommées, lien partage temporaire. Fondamental pour pair programming sans IDE complet.
 
-Éditeur visuel des variables d'environnement du workspace avec :
-- Champ masqué pour les secrets.
-- Diff entre les variables actuelles et celles du Template par défaut.
-- Import depuis un fichier `.env` (parse local, jamais envoyé tel quel au serveur).
+### 6.5 Snapshot chaud + Restauration
 
-### 6.5 Terminaux partagés (Backlog → MVP+)
+`docker pause` + copie volume → checkpoint en secondes. Rollback rapide avant opération risquée.
 
-Terminaux multiplexés via **WebSocket + xterm.js**, avec sessions nommées et accès partageable via lien temporaire. Fondamental pour le pair programming sans IDE complet.
+### 6.6 Pre-warming d'images
 
-### 6.6 Snapshot chaud + Restauration rapide
+Job Rust cron quotidien qui pull les images Template les plus utilisées. Réduit le cold start de 30-120s à quelques secondes.
 
-Mécanisme de checkpoint du conteneur (via `docker pause` + copie du volume) pour des rollbacks en secondes. Différent d'un arrêt propre, utile avant une opération risquée.
+### 6.7 Pipeline IA : Review automatique de diff
 
-### 6.7 Pre-warming d'images
-
-Planifier le pull des images Docker les plus utilisées sur l'hôte avant la demande utilisateur. Réduit le cold start de 30-120s à quelques secondes. Géré par un job Celery Beat quotidien sur la liste des templates populaires.
-
-### 6.8 Pipeline IA : Review automatique de diff
-
-Avant la phase de revue (étape 7), déclencher automatiquement un job IA qui analyse le diff Git et produit :
-- Résumé des changements en langage naturel.
-- Risques potentiels identifiés (sécurité, perf, breaking changes).
-- Suggestions de nommage / refactoring.
+Job Rust déclenché avant l'étape 7 (Revue). Appel LLM via `AiProviderAdapter` sur le diff Git. Produit :
+- Résumé en langage naturel.
+- Risques potentiels (sécurité, perf, breaking changes).
+- Suggestions de refactoring.
 
 Affiché en sidebar dans la vue Diff du dashboard.
 
-### 6.9 Workspace Activity Feed
+### 6.8 Workspace Activity Feed
 
-Timeline par workspace de toutes les actions : clonage Git, démarrages/arrêts, exécutions pipeline, commits poussés, tickets créés. Permet à un manager ou reviewer de comprendre l'historique sans interroger les logs bruts.
+Timeline par workspace : clonage Git, démarrages/arrêts, exécutions pipeline, commits, tickets. Alimentée depuis `audit_events` + events Redis Streams.
 
-### 6.10 API de Quotas par Organisation
+### 6.9 Quotas par Organisation (`OrganizationQuota`)
 
-Permettre aux administrateurs de définir des quotas :
-- Nombre maximum de workspaces actifs simultanément.
-- Durée maximale d'une session sans activité avant hibernation.
-- Limite de CPU/RAM cumulée pour l'organisation.
+```
+max_concurrent_workspaces INT,
+max_workspace_cpu_millicores INT,
+max_workspace_memory_mb INT,
+auto_hibernate_after_minutes INT
+```
+Vérifiés à la création workspace et appliqués par le worker.
 
-Géré par une entité `OrganizationQuota` et appliqué à la création de workspace.
+### 6.10 CLI Koda (`koda connect <uid>`)
 
-### 6.11 CLI Koda (Accès SSH natif)
-
-Un client CLI (`koda connect <uid>`) qui établit un tunnel SSH vers le workspace sans passer par l'interface web. Pour les développeurs préférant leur terminal local avec leurs propres outils.
+Client CLI Rust (binaire unique, distribuable) établissant un tunnel SSH vers le workspace. Pour les développeurs préférant leur terminal local. Distribué comme release GitHub.
 
 ---
 
-## 7. Roadmap de faisabilité recommandée
+## 7. Roadmap de faisabilité
 
 ### Phase 0 — Fondations (semaines 1-4)
-- Monorepo initialisé (apps/, services/, packages/, infra/).
-- PostgreSQL + Alembic + modèles de base.
-- FastAPI skeleton + authentification (session + OAuth).
-- Docker Compose de développement.
+- Monorepo initialisé (structure `apps/`, `services/`, `infra/`, `docs/`).
+- PostgreSQL + sqlx-migrate + modèles de base (Workspace, User, Organization).
+- Axum skeleton : auth session + OAuth, endpoints `/api/v1/auth/*`.
+- Trait `AiProviderAdapter` (interface + implémentation Anthropic HTTP).
+- Docker Compose dev : api, dashboard, db, redis, docker-socket-proxy.
 
 ### Phase 1 — Workspace minimal (semaines 5-10)
 - Création workspace + UID.
-- Clone Git asynchrone (Celery).
-- Lancement conteneur via docker-socket-proxy.
-- Traefik dynamique : route `[UID]/[path]` → container.
-- Dashboard : liste workspaces + statut.
+- Clone Git asynchrone via git2 + worker Redis Streams.
+- Lancement container bollard via docker-socket-proxy (avec resource limits).
+- nginxify : creation/suppression ExposureRule via API.
+- Dashboard : liste workspaces + statut en SSE.
 
 ### Phase 2 — Workspace complet (semaines 11-16)
-- Plugin binding + health probe.
-- ExposureRules dynamiques.
-- Diff viewer.
-- SSE pour statuts temps réel.
+- PluginBinding + health probe par plugin.
+- ExposureRules dynamiques (create/update/delete via nginxify).
+- Diff viewer (git2 + frontend).
+- WorkspaceVolume lifecycle.
+- TOTP MFA + tokens M2M.
 
 ### Phase 3 — Pipelines CI/CD (semaines 17-22)
 - CiCdPipeline + AutomationTrigger.
-- Worker Celery pour exécution pipeline dans conteneur isolé.
-- Webhook entrant signé.
+- Workers Rust pour exécution pipeline dans container isolé.
+- Webhook entrant HMAC + `IncomingWebhookEvent`.
+- Webhook Inbox dashboard.
 
 ### Phase 4 — Sécurité & Observabilité (semaines 23-26)
-- RBAC complet + audit events.
-- OpenTelemetry + Sentry.
-- Tests E2E Playwright (parcours critiques).
-- Review sécurité (OWASP Top 10 checklist).
+- RBAC complet + `AuditEvent`.
+- RLS PostgreSQL sur tables critiques.
+- OpenTelemetry export OTLP + Sentry.
+- Tests E2E Playwright (création workspace, revue diff, clôture).
+- Review sécurité OWASP Top 10.
 
 ---
 
@@ -309,13 +360,16 @@ Un client CLI (`koda connect <uid>`) qui établit un tunnel SSH vers le workspac
 
 | Critère | Statut | Note |
 |---------|--------|------|
-| Stack compatible self-hosted VPS | ✅ | Docker Compose + Traefik + PostgreSQL |
-| Contrat API aligné entités métier | ✅ avec gaps | Pagination et SSE à ajouter |
-| Sécurité multi-tenant | ⚠️ | RLS PostgreSQL recommandé en plus des filtres applicatifs |
-| Migrations rollback-safe | ✅ | Alembic + expand/contract |
+| Stack compatible self-hosted VPS | ✅ | Docker Compose + nginxify + PostgreSQL |
+| Contrat API aligné entités métier | ✅ | Pagination cursor + SSE à implémenter |
+| Sécurité multi-tenant | ✅ | RLS PostgreSQL + filtre organization_id |
+| Migrations rollback-safe | ✅ | sqlx-migrate + expand/contract |
 | WCAG 2.1 AA dashboard | ✅ | shadcn/ui (Radix) accessible par défaut |
 | Budget hébergement plausible | ✅ | 75-180 EUR/mois réaliste pour MVP |
-| Isolation container | ⚠️ | docker-socket-proxy obligatoire + resource limits |
-| WebSocket gateway | ⚠️ | Nécessite Traefik ou configuration proxy explicite |
-| Volumes persistants formalisés | ❌ | Entité `WorkspaceVolume` à ajouter aux specs |
-| Health checks workspace | ❌ | Mécanisme de probe à définir par plugin |
+| Isolation container | ⚠️ | docker-socket-proxy obligatoire + resource limits bollard |
+| WebSocket gateway | ✅ | nginxify (nginx) supporte nativement |
+| Port forwarding | ✅ | Géré nativement par nginxify |
+| Volumes persistants formalisés | ✅ | Entité `WorkspaceVolume` ajoutée |
+| Health checks workspace | ✅ | Probe définie dans `PluginDefinition` |
+| Auth nginxify ↔ Koda | ⚠️ | Shared secret ou mTLS à définir |
+| LLM abstraction | ⚠️ | Trait `AiProviderAdapter` à implémenter Phase 0 |
