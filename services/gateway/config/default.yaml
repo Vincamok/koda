@@ -1,5 +1,6 @@
 database_url: "postgres://koda:koda@localhost:5432/koda"
 redis_url: "redis://localhost:6379"
-worker_id: "gateway-1"
+consumer_group: "gateway"
+consumer_name: "gateway-1"
 sozu_socket: "/var/run/sozu/koda.sock"
-dead_letter_max_attempts: 3
+base_domain: "koda.local"

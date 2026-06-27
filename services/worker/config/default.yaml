@@ -1,4 +1,6 @@
 database_url: "postgres://koda:koda@localhost:5432/koda"
 redis_url: "redis://localhost:6379"
-worker_id: "worker-1"
-dead_letter_max_attempts: 3
+consumer_group: "worker"
+consumer_name: "worker-1"
+plugin_probe_interval_seconds: 60
+http_timeout_seconds: 10
