@@ -8,6 +8,13 @@ use uuid::Uuid;
 
 use crate::{error::AppError, models::user::AuthUser};
 
+/// Carries resolved org context injected by with_org_context middleware.
+#[derive(Clone)]
+pub struct OrgContext {
+    pub id: Uuid,
+    pub role: String,
+}
+
 const SESSION_USER_KEY: &str = "user_id";
 
 /// Extracts the authenticated user from the session.
@@ -69,27 +76,25 @@ pub async fn with_org_context(
         .ok_or(AppError::Unauthorized)?;
 
     // super_admin bypasses org membership check
-    if auth_user.is_super_admin {
-        let mut enriched = auth_user;
-        enriched.org_id = Some(org_id);
-        enriched.org_role = Some("super_admin".into());
-        request.extensions_mut().insert(enriched);
-        return Ok(next.run(request).await);
-    }
-
-    let membership = sqlx::query!(
-        "SELECT role FROM memberships WHERE organization_id = $1 AND user_id = $2",
-        org_id,
-        auth_user.id
-    )
-    .fetch_optional(&pool)
-    .await?
-    .ok_or(AppError::Forbidden)?;
+    let role = if auth_user.is_super_admin {
+        "super_admin".to_string()
+    } else {
+        let membership = sqlx::query!(
+            "SELECT role FROM memberships WHERE organization_id = $1 AND user_id = $2",
+            org_id,
+            auth_user.id
+        )
+        .fetch_optional(&pool)
+        .await?
+        .ok_or(AppError::Forbidden)?;
+        membership.role
+    };
 
     let mut enriched = auth_user;
     enriched.org_id = Some(org_id);
-    enriched.org_role = Some(membership.role);
+    enriched.org_role = Some(role.clone());
     request.extensions_mut().insert(enriched);
+    request.extensions_mut().insert(OrgContext { id: org_id, role });
 
     Ok(next.run(request).await)
 }

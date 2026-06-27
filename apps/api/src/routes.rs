@@ -7,7 +7,7 @@ use tower_sessions::SessionManagerLayer;
 use tower_sessions_redis_store::RedisStore;
 
 use crate::{
-    handlers::{auth, orgs, personal, user_settings},
+    handlers::{auth, orgs, personal, user_settings, workspaces},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::request_id::request_id_layer,
     AppState,
@@ -40,6 +40,13 @@ pub fn build_router(state: AppState, session_layer: SessionManagerLayer<RedisSto
         .route("/api/v1/organizations/:org_id/members", post(orgs::post_org_member))
         .route("/api/v1/organizations/:org_id/members/:user_id", patch(orgs::patch_org_member))
         .route("/api/v1/organizations/:org_id/members/:user_id", delete(orgs::delete_org_member))
+        // Workspaces
+        .route("/api/v1/organizations/:org_id/workspaces", get(workspaces::get_workspaces))
+        .route("/api/v1/organizations/:org_id/workspaces", post(workspaces::post_workspace))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id", get(workspaces::get_workspace))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id", delete(workspaces::delete_workspace))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/start", post(workspaces::post_workspace_start))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/stop", post(workspaces::post_workspace_stop))
         .layer(middleware::from_fn_with_state(state.clone(), with_org_context))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

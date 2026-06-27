@@ -25,7 +25,11 @@ async fn main() -> anyhow::Result<()> {
         .user_agent("koda-api/0.1")
         .build()?;
 
-    let state = AppState { pool, config: config.clone(), http };
+    // Shared Redis multiplexed connection for job publishing
+    let redis_client_jobs = redis::Client::open(config.redis_url.as_str())?;
+    let redis_conn = redis_client_jobs.get_multiplexed_async_connection().await?;
+
+    let state = AppState { pool, config: config.clone(), http, redis: redis_conn };
 
     // Session store backed by Redis
     let redis_client = redis::Client::open(config.redis_url.as_str())?;

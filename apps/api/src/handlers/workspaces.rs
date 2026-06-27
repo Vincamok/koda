@@ -1,0 +1,415 @@
+use axum::{
+    extract::{Path, Query, State},
+    response::IntoResponse,
+    Extension, Json,
+};
+use redis::AsyncCommands;
+use serde::{Deserialize, Serialize};
+use time::OffsetDateTime;
+use uuid::Uuid;
+use validator::Validate;
+
+use crate::{
+    error::AppError,
+    jobs::{GitJob, OrchestratorJob, STREAM_GIT, STREAM_ORCHESTRATOR},
+    middleware::auth::{AuthUser, OrgContext},
+    AppState,
+};
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceResponse {
+    pub id: Uuid,
+    pub uid: String,
+    pub organization_id: Uuid,
+    pub project_id: Option<Uuid>,
+    pub name: String,
+    pub status: String,
+    pub cpu_limit: i32,
+    pub ram_limit_mb: i32,
+    pub pids_limit: i32,
+    pub created_by: Option<Uuid>,
+    pub created_at: OffsetDateTime,
+    pub updated_at: OffsetDateTime,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateWorkspaceRequest {
+    #[validate(length(min = 1, max = 120))]
+    pub name: String,
+    pub project_id: Option<Uuid>,
+    pub template_id: Option<Uuid>,
+    pub cpu_limit: Option<i32>,
+    pub ram_limit_mb: Option<i32>,
+    pub git: Option<GitConfigRequest>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct GitConfigRequest {
+    #[validate(length(min = 1))]
+    pub repo_url: String,
+    #[validate(length(min = 1, max = 200))]
+    pub branch: Option<String>,
+    pub ssh_key_secret_ref_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListWorkspacesQuery {
+    pub project_id: Option<Uuid>,
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+fn generate_uid(org_id: Uuid) -> String {
+    let short = &org_id.to_string().replace('-', "")[..8];
+    let rand = Uuid::new_v4().to_string().replace('-', "");
+    format!("ws-{short}-{}", &rand[..8])
+}
+
+async fn publish_job(redis: &mut redis::aio::MultiplexedConnection, stream: &str, job: &impl serde::Serialize) -> Result<(), AppError> {
+    let json = serde_json::to_string(job)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+    let _: String = redis
+        .xadd(stream, "*", &[("payload", json)])
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!(e)))?;
+    Ok(())
+}
+
+// ── POST /organizations/:org_id/workspaces ────────────────────────────────────
+
+pub async fn post_workspace(
+    State(mut state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Json(body): Json<CreateWorkspaceRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    body.validate()
+        .map_err(|e| AppError::Validation(e.to_string()))?;
+
+    let caller_role = auth.org_role.as_deref().unwrap_or("");
+    if !["owner", "admin", "member", "super_admin"].contains(&caller_role) {
+        return Err(AppError::Forbidden);
+    }
+
+    // Enforce quota
+    let quota = sqlx::query!(
+        "SELECT max_workspaces FROM organization_quotas WHERE organization_id = $1",
+        org.id
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+
+    let max_ws = quota.map(|q| q.max_workspaces).unwrap_or(10);
+    let current_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM workspaces WHERE organization_id = $1 AND status != 'closed'",
+        org.id
+    )
+    .fetch_one(&state.pool)
+    .await?
+    .unwrap_or(0);
+
+    if current_count >= max_ws as i64 {
+        return Err(AppError::QuotaExceeded("workspace limit reached".into()));
+    }
+
+    let uid = generate_uid(org.id);
+    let cpu = body.cpu_limit.unwrap_or(2).clamp(1, 16);
+    let ram = body.ram_limit_mb.unwrap_or(2048).clamp(512, 32768);
+
+    let ws = sqlx::query!(
+        r#"INSERT INTO workspaces
+               (uid, organization_id, project_id, template_id, created_by, name, cpu_limit, ram_limit_mb)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING id, uid, organization_id, project_id, name, status, cpu_limit, ram_limit_mb,
+                     pids_limit, created_by, created_at, updated_at"#,
+        uid,
+        org.id,
+        body.project_id,
+        body.template_id,
+        auth.id,
+        body.name,
+        cpu,
+        ram,
+    )
+    .fetch_one(&state.pool)
+    .await?;
+
+    // If a git config was provided, store it and enqueue clone job
+    if let Some(git) = body.git {
+        git.validate()
+            .map_err(|e| AppError::Validation(e.to_string()))?;
+
+        let branch = git.branch.unwrap_or_else(|| "main".into());
+        let gc = sqlx::query!(
+            r#"INSERT INTO workspace_git_configs
+                   (workspace_id, repo_url, branch, ssh_key_secret_ref_id)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id"#,
+            ws.id,
+            git.repo_url,
+            branch,
+            git.ssh_key_secret_ref_id,
+        )
+        .fetch_one(&state.pool)
+        .await?;
+
+        // Update workspace status to 'cloning'
+        sqlx::query!(
+            "UPDATE workspaces SET status = 'cloning', updated_at = NOW() WHERE id = $1",
+            ws.id
+        )
+        .execute(&state.pool)
+        .await?;
+
+        let job = GitJob::CloneRepo {
+            workspace_id: ws.id,
+            git_config_id: gc.id,
+            repo_url: git.repo_url,
+            branch,
+            ssh_key_secret_ref_id: git.ssh_key_secret_ref_id,
+        };
+        publish_job(&mut state.redis, STREAM_GIT, &job).await?;
+        tracing::info!(workspace_id = %ws.id, "enqueued clone job");
+    } else {
+        // No git — workspace is immediately 'ready' for start
+        sqlx::query!(
+            "UPDATE workspaces SET status = 'ready', updated_at = NOW() WHERE id = $1",
+            ws.id
+        )
+        .execute(&state.pool)
+        .await?;
+    }
+
+    let resp = WorkspaceResponse {
+        id: ws.id,
+        uid: ws.uid,
+        organization_id: ws.organization_id,
+        project_id: ws.project_id,
+        name: ws.name,
+        status: ws.status,
+        cpu_limit: ws.cpu_limit,
+        ram_limit_mb: ws.ram_limit_mb,
+        pids_limit: ws.pids_limit,
+        created_by: ws.created_by,
+        created_at: ws.created_at,
+        updated_at: ws.updated_at,
+    };
+
+    Ok((axum::http::StatusCode::CREATED, Json(serde_json::json!({ "data": resp }))))
+}
+
+// ── GET /organizations/:org_id/workspaces ─────────────────────────────────────
+
+pub async fn get_workspaces(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Query(params): Query<ListWorkspacesQuery>,
+) -> Result<impl IntoResponse, AppError> {
+    let limit = params.limit.unwrap_or(20).clamp(1, 100);
+    let offset = params.offset.unwrap_or(0).max(0);
+
+    let workspaces = sqlx::query!(
+        r#"SELECT id, uid, organization_id, project_id, name, status,
+                  cpu_limit, ram_limit_mb, pids_limit, created_by, created_at, updated_at
+           FROM workspaces
+           WHERE organization_id = $1
+             AND ($2::uuid IS NULL OR project_id = $2)
+             AND ($3::text IS NULL OR status = $3)
+           ORDER BY created_at DESC
+           LIMIT $4 OFFSET $5"#,
+        org.id,
+        params.project_id,
+        params.status,
+        limit,
+        offset,
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    let data: Vec<WorkspaceResponse> = workspaces
+        .into_iter()
+        .map(|ws| WorkspaceResponse {
+            id: ws.id,
+            uid: ws.uid,
+            organization_id: ws.organization_id,
+            project_id: ws.project_id,
+            name: ws.name,
+            status: ws.status,
+            cpu_limit: ws.cpu_limit,
+            ram_limit_mb: ws.ram_limit_mb,
+            pids_limit: ws.pids_limit,
+            created_by: ws.created_by,
+            created_at: ws.created_at,
+            updated_at: ws.updated_at,
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "data": data })))
+}
+
+// ── GET /organizations/:org_id/workspaces/:workspace_id ───────────────────────
+
+pub async fn get_workspace(
+    State(state): State<AppState>,
+    Extension(_auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    let ws = sqlx::query!(
+        r#"SELECT id, uid, organization_id, project_id, name, status,
+                  cpu_limit, ram_limit_mb, pids_limit, created_by, created_at, updated_at
+           FROM workspaces
+           WHERE id = $1 AND organization_id = $2"#,
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    Ok(Json(serde_json::json!({ "data": WorkspaceResponse {
+        id: ws.id,
+        uid: ws.uid,
+        organization_id: ws.organization_id,
+        project_id: ws.project_id,
+        name: ws.name,
+        status: ws.status,
+        cpu_limit: ws.cpu_limit,
+        ram_limit_mb: ws.ram_limit_mb,
+        pids_limit: ws.pids_limit,
+        created_by: ws.created_by,
+        created_at: ws.created_at,
+        updated_at: ws.updated_at,
+    }})))
+}
+
+// ── POST /organizations/:org_id/workspaces/:workspace_id/start ─────────────────
+
+pub async fn post_workspace_start(
+    State(mut state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    let ws = sqlx::query!(
+        "SELECT id, status FROM workspaces WHERE id = $1 AND organization_id = $2",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if !["ready", "stopped"].contains(&ws.status.as_str()) {
+        return Err(AppError::BadRequest(format!(
+            "cannot start workspace in '{}' state",
+            ws.status
+        )));
+    }
+
+    sqlx::query!(
+        "UPDATE workspaces SET status = 'starting', updated_at = NOW() WHERE id = $1",
+        workspace_id
+    )
+    .execute(&state.pool)
+    .await?;
+
+    let job = OrchestratorJob::StartWorkspace {
+        workspace_id,
+        org_id: org.id,
+    };
+    publish_job(&mut state.redis, STREAM_ORCHESTRATOR, &job).await?;
+    tracing::info!(workspace_id = %workspace_id, user_id = %auth.id, "enqueued start-workspace job");
+
+    Ok(Json(serde_json::json!({ "data": { "status": "starting" } })))
+}
+
+// ── POST /organizations/:org_id/workspaces/:workspace_id/stop ─────────────────
+
+pub async fn post_workspace_stop(
+    State(mut state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    let ws = sqlx::query!(
+        "SELECT id, status FROM workspaces WHERE id = $1 AND organization_id = $2",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if ws.status != "running" {
+        return Err(AppError::BadRequest(format!(
+            "cannot stop workspace in '{}' state",
+            ws.status
+        )));
+    }
+
+    sqlx::query!(
+        "UPDATE workspaces SET status = 'stopping', updated_at = NOW() WHERE id = $1",
+        workspace_id
+    )
+    .execute(&state.pool)
+    .await?;
+
+    let job = OrchestratorJob::StopWorkspace {
+        workspace_id,
+        org_id: org.id,
+    };
+    publish_job(&mut state.redis, STREAM_ORCHESTRATOR, &job).await?;
+    tracing::info!(workspace_id = %workspace_id, user_id = %auth.id, "enqueued stop-workspace job");
+
+    Ok(Json(serde_json::json!({ "data": { "status": "stopping" } })))
+}
+
+// ── DELETE /organizations/:org_id/workspaces/:workspace_id ───────────────────
+
+pub async fn delete_workspace(
+    State(mut state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    let caller_role = auth.org_role.as_deref().unwrap_or("");
+    if !["owner", "admin", "super_admin"].contains(&caller_role) {
+        return Err(AppError::Forbidden);
+    }
+
+    let ws = sqlx::query!(
+        "SELECT id, status FROM workspaces WHERE id = $1 AND organization_id = $2",
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if ws.status == "running" {
+        return Err(AppError::BadRequest("stop the workspace before deleting".into()));
+    }
+
+    sqlx::query!(
+        "UPDATE workspaces SET status = 'closed', updated_at = NOW() WHERE id = $1",
+        workspace_id
+    )
+    .execute(&state.pool)
+    .await?;
+
+    let job = OrchestratorJob::DeleteWorkspace {
+        workspace_id,
+        org_id: org.id,
+    };
+    publish_job(&mut state.redis, STREAM_ORCHESTRATOR, &job).await?;
+    tracing::info!(workspace_id = %workspace_id, user_id = %auth.id, "enqueued delete-workspace job");
+
+    Ok(Json(serde_json::json!({ "data": null })))
+}

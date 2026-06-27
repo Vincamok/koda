@@ -13,11 +13,15 @@ export type { PersonalSpace, Snippet, CreateSnippetRequest } from './resources/p
 export { UserSettingsResource } from './resources/user-settings'
 export type { UserSettings, UpdateUserSettingsRequest } from './resources/user-settings'
 
+export { WorkspacesResource } from './resources/workspaces'
+export type { CreateWorkspaceRequest, ListWorkspacesQuery, GitConfigRequest } from './resources/workspaces'
+
 import { KodaClient } from './client'
 import { AuthResource } from './resources/auth'
 import { OrgsResource } from './resources/orgs'
 import { PersonalResource } from './resources/personal'
 import { UserSettingsResource } from './resources/user-settings'
+import { WorkspacesResource } from './resources/workspaces'
 import type { KodaClientOptions } from './client'
 
 export interface KodaSDK {
@@ -25,6 +29,7 @@ export interface KodaSDK {
   orgs: OrgsResource
   personal: PersonalResource
   userSettings: UserSettingsResource
+  workspaces: WorkspacesResource
 }
 
 export function createKodaClient(opts: KodaClientOptions): KodaSDK {
@@ -34,5 +39,6 @@ export function createKodaClient(opts: KodaClientOptions): KodaSDK {
     orgs: new OrgsResource(client),
     personal: new PersonalResource(client),
     userSettings: new UserSettingsResource(client),
+    workspaces: new WorkspacesResource(client),
   }
 }
