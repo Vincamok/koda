@@ -1,5 +1,9 @@
 database_url: "postgres://koda:koda@localhost:5432/koda"
 redis_url: "redis://localhost:6379"
-worker_id: "orchestrator-1"
-docker_host: "unix:///var/run/docker.sock"
-dead_letter_max_attempts: 3
+consumer_group: "orchestrator"
+consumer_name: "orchestrator-1"
+docker_socket: "unix:///var/run/docker.sock"
+workspace_network: "koda-workspaces"
+workspace_image: "ghcr.io/vincamok/koda/workspace:latest"
+personal_volume_prefix: "koda-personal"
+sozu_socket: null

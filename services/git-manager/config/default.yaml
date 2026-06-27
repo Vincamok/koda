@@ -1,5 +1,6 @@
 database_url: "postgres://koda:koda@localhost:5432/koda"
 redis_url: "redis://localhost:6379"
-worker_id: "git-manager-1"
-dead_letter_max_attempts: 3
-clone_timeout_secs: 300
+consumer_group: "git-manager"
+consumer_name: "git-manager-1"
+workspace_volumes_base: "/var/lib/koda/workspaces"
+clone_timeout_seconds: 300
