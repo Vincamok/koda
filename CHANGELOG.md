@@ -8,154 +8,107 @@
 ## [Unreleased]
 
 ### Added
-- OpenAPI 3.1 / Swagger UI : `utoipa` v4 + `utoipa-swagger-ui` v7 montés sur `/swagger-ui` et `/api-docs/openapi.json` — 58 endpoints documentés, sécurité cookie session, 13 tags, `ApiDoc` centralisé dans `openapi.rs`
-- `rate_limit_middleware` branché en layer global sur toutes les routes (300 req/min par IP, 600 req/min par utilisateur authentifié, Redis sliding window INCR + EXPIRE)
-- Tests E2E Playwright : 5 bugs corrigés — répertoire `.auth/` manquant (ENOENT), regex label français `/nom du workspace/` → `/^nom$/i`, mode `serial` pour état partagé `workspaceId`, `e2e/.gitignore` protège les tokens de session, middleware rate limiting absent des routes
-- Interface administration (`apps/admin/`) : panel super_admin dédié (quotas, logs, IA, infra, multi-instances)
-- Rôle `super_admin` (plateforme, non org-scoped) avec impersonation tracée
-- `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances Koda depuis un panel central
-- OAuth Authentik (OIDC générique) en plus de Google et GitHub
-- `SecretRef` stockage : colonne DB chiffrée AES-256-GCM + inject Docker env pour secrets runtime
-- `packages/shared-types/` + `packages/api-client/` (client HTTP typé généré depuis OpenAPI)
-- `OrganizationQuota` : champs `max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`
-- `devcontainer.json` : lecture au clonage → pré-remplissage Template/Plugin (roadmap v0.3.0)
-- Catalogue plugins validé : `koda-web-ide`, `code-server`, `ssh`, `jupyter`
-- Plages TCP sozu validées : SSH `2200-2999`, PostgreSQL `5400-5499`
-- Workspace `reviewing` → clôture libre (pas de blocage obligatoire)
-- Backlog enrichi : KODA-B14 multi-instances avancé, KODA-B15 TicketRecord, KODA-B16 marketplace plugins
-- Fix mcp-gateway : `base64_encode` partagé (bug compilation `http.rs`), dead-letter, XGROUP CREATE, figment, UserMCPBinding TypeScript
-- Internationalisation (i18n) : `next-intl` sur les 3 apps Next.js + `packages/i18n/` clés partagées + 4 langues MVP (FR, EN, ES, DE)
-- `UserSettings` : entité `user_settings` (locale, theme_id) + API `GET|PUT /api/v1/users/me/settings`
-- Injection langue `UserSettings.locale` en couche 6 du contexte LLM via `AiContextBuilder`
-- Pré-prompts LLM-agnostiques : hiérarchie 6 couches (platform → org → lang packs → framework packs → `KODA.md` → `ai/instructions.md`)
-- Packs langue et framework built-in avec auto-détection depuis manifestes repo (Cargo.toml, package.json, etc.)
-- `KODA.md` : fichier workspace-level LLM-agnostique (distinct de `CLAUDE.md` pour Claude Code)
-- `ai/instructions.md` : renommage depuis `ai/CLAUDE.md` dans PersonalSpace
-- Analyse de faisabilité initiale (`docs/FEASIBILITY_ANALYSIS.md`)
-- Décisions architecturales : Rust (Axum + SQLx), sozu gateway, Harness CI/CD
-- Système de thèmes évolutif : `ThemeRegistry` observable, `SkinManifest` avec héritage `extends`, `loadFromUrl()` marketplace
-- 4 skins built-in (default, minimal, pro, light) avec layouts distincts
-- `ThemeSwitcher` avec miniatures `SkinPreview` générées depuis les tokens CSS
-- MCP connecteurs plugins : `@koda/mcp-connectors` (registre TypeScript + 6 connecteurs built-in)
-- `MCPConnectorRegistry` observable (même pattern que ThemeRegistry)
-- `services/mcp-gateway/` : service Rust consommant Redis Streams `jobs:mcp`, 6 connecteurs built-in
-- `McpConnector` trait Rust + `ConnectorRegistry` auto-enregistrement
-- RBAC Teams : `Team`, `TeamMembership`, `TeamProjectAccess`, `TeamQuota` (3 couches : org + team + workspace)
-- `WorkspaceShare` : partage ad-hoc avec expiration (editor|reviewer|viewer)
-- Stratégie réseaux Docker multi par workspace (`koda-ws-<uid>-internal`, `koda-ws-<uid>-services`, `koda-egress`)
-- Labels `koda.*` obligatoires sur tous les containers éphémères (GC + traçabilité)
-- `PersonalSpace` : espace personnel portable par utilisateur (volume Docker + 7 catégories de fichiers)
-- `UserMCPBinding` : connecteurs MCP personnels (distinct des bindings workspace)
-- 5 niveaux de prompt IA (nano, quick, standard, deep, agent) avec filtre secrets et audit
-- Détection device → 3 modes IDE (full-ide, tablet-ide, mobile-view)
-- Sécurité intégrée dans les projets : `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`
-- 4 types de scan CI/CD : secret_scan, sast (LLM dédié), dependency_scan, image_scan
-- Config par service : `config/default.yaml` + `.env.example` + `figment` (merge YAML/env/.env)
-- Proxy trust : `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur tous les services Axum
-- Spécification d'implémentation par module (`docs/IMPLEMENTATION_SPEC.md`)
-- Roadmap versionnée v0.1.0 → v1.0.0
+- OpenAPI 3.1 / Swagger UI : `utoipa` v4 + `utoipa-swagger-ui` v7 montés sur `/swagger-ui` et `/api-docs/openapi.json` — 58 endpoints documentés, sécurité cookie session, 13 tags
+- `rate_limit_middleware` branché en layer global : 300 req/min par IP, 600 req/min par utilisateur authentifié, Redis sliding window INCR + EXPIRE
+- Tests E2E Playwright : 5 correctifs — répertoire `.auth/` manquant (ENOENT), regex label français `/^nom$/i`, mode `serial` pour `workspaceId` partagé, `e2e/.gitignore`, middleware rate limiting absent des routes
 
 ---
 
-## [0.1.0] — À venir · Phase 0
+## [0.4.0] — 2026-06-27 · Phase 3 — Pipelines CI/CD
 
 ### Added
-- Monorepo Rust multi-crates (api, orchestrator, worker, git-manager, gateway)
-- API Axum : authentification (session cookie, OAuth Google/GitHub)
-- PostgreSQL + sqlx-migrate : Organization, User, Membership, Team, TeamMembership
-- PersonalSpace : modèle DB + volume Docker `koda-personal-<user-uid>` (fondations)
-- Trait `AiProviderAdapter` + implémentation Anthropic
-- sozu en Docker Compose dev
-- Service gateway/ : client sozu-command-lib
-- Dashboard Next.js : skeleton + login (responsive mobile-first)
-- ThemeProvider + sélecteur de thèmes (4 skins)
-- Config par service : `config/default.yaml` + `.env.example` + figment
-- `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur API
-- Pipeline Harness : CI toutes branches + déploiement prod auto sur main
+- Modèles DB : `CiCdPipeline`, `AutomationTrigger`, `IncomingWebhookEvent`, `Job`
+- `pipeline_runner.rs` : exécution réelle de tous les types de pipeline
+- `secret_scan` : parcours de fichiers par walkdir + regex patterns + entropie Shannon pour détecter les tokens hardcodés
+- `dependency_scan` : `cargo audit --json` + `npm audit --json` avec parsing des CVE et mapping CVSS → severity
+- `sast` : rapport LLM dédié OWASP Top 10, severity scoring Critical/High/Medium/Low/Info
+- `image_scan` : exécution Trivy/Grype via container éphémère
+- `build` / `lint` : exécution dans containers éphémères avec resource limits
+- `cron_scheduler.rs` : évaluateur cron 5 champs (min, hour, dom, month, dow) + step `*/n` + ranges
+- Triggers `on_push`, `schedule`, `manual` via `AutomationTrigger`
+- Webhook entrant : vérification HMAC-SHA256 + stockage `IncomingWebhookEvent`
+- Dead-letter stream : jobs échoués après 3 tentatives → `koda:jobs:pipeline:dead`
+- API : endpoints pipelines, triggers, pipeline run, webhook events, security reports
+- `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`, `ScanRule` (DB + API)
+- Rapport sécurité consultable par workspace (`GET .../security-reports`)
+- `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances (migration DB)
 
 ---
 
-## [0.2.0] — À venir · Phase 1
+## [0.3.0] — 2026-06-27 · Phase 2 — Workspace complet
 
 ### Added
-- Workspace : création, statut, UID immuable
-- WorkspaceGitConfig : clone asynchrone (pending → cloning → ready | failed)
-- WorkspaceVolume : cycle de vie (création, montage, détachement)
-- WorkspaceShare : partage ad-hoc (editor|reviewer|viewer), expiration
-- Container Docker via bollard + docker-socket-proxy (resource limits obligatoires)
-- Réseaux Docker multi : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services` + `koda-egress`
-- Labels `koda.*` obligatoires sur tous les containers
-- ExposureRule HTTP via sozu
-- SSE : `/api/v1/workspaces/:uid/events`
-- Dashboard : liste workspaces + création + statut temps réel
-- Dashboard multi-device : responsive mobile (monitoring + start/stop)
+- `apps/web-client/` : IDE web avec Monaco Editor + chat IA sidebar
+- `ide::get_workspace_files` + `get_workspace_file_content` : navigation fichiers workspace
+- `ide::post_workspace_ai_chat` : endpoint chat IA SSE avec 5 niveaux de prompt (nano, quick, standard, deep, agent)
+- `ai/context_builder.rs` : assemblage 6 couches de contexte LLM (platform → org → lang packs → framework packs → KODA.md → ai/instructions.md)
+- Packs langue built-in : `rust`, `typescript`, `python`, `go`, `sql` (Markdown, non supprimables)
+- `plugin_prober.rs` : health probe HTTP par binding actif, mise à jour `health_status`
+- `PluginDefinition` + `WorkspacePluginBinding` : migrations + modèles DB
+- Catalogue plugins : `koda-web-ide`, `code-server`, `ssh`, `jupyter`
+- `UserMCPBinding` : connecteurs MCP personnels distincts des bindings workspace
+- `PersonalSpace` : volume Docker monté en `:ro` dans chaque workspace (`personal_spaces`, `personal_snippets`)
+- API snippets personnels : CRUD complet (`GET|POST|PATCH|DELETE /api/v1/personal/snippets`)
+- `services/mcp-gateway/` : service Rust Redis Streams consumer, trait `McpConnector`, registry auto-enregistrement
+- Connecteurs built-in mcp-gateway : jira, notion, postgres, slack, http (Rust)
+- `packages/mcp-connectors/` : registre TypeScript + connecteurs built-in (jira, notion, postgres, slack, http)
+- `MCPConnectorDefinition` + `WorkspaceMCPBinding` : migrations DB
+- `SecretRef` : résolution credentials au moment du `call_tool`, jamais loggué
+- `KODA.md` support : fichier workspace-level LLM-agnostique (couche 5 du contexte)
+- `UserSettings.locale` injecté en couche 6 du contexte LLM via `AiContextBuilder`
+- `user_settings` : API `GET|PUT /api/v1/user/settings` (locale, theme_id)
+- i18n : `packages/i18n/` + `next-intl` sur les 3 apps Next.js + messages FR/EN/ES/DE
 
 ---
 
-## [0.3.0] — À venir · Phase 2
+## [0.2.0] — 2026-06-27 · Phase 1 — Workspace minimal
 
 ### Added
-- PluginDefinition catalogue (koda-web-ide, code-server, ssh, jupyter)
-- WorkspacePluginBinding + health probe par plugin
-- Koda Web IDE : Monaco Editor + file tree + terminal xterm.js + chat IA sidebar + git panel
-- **5 niveaux de prompt IA** (nano, quick, standard, deep, agent) + filtre secrets + détection prompt injection
-- **Détection device** → 3 modes IDE (full-ide | tablet-ide | mobile-view)
-- **PersonalSpace complet** : volume monté en read-only, fusion CLAUDE.md, snippets, shell/git configs, notes workspace
-- Panel "Mon espace" dans web-client (édition Monaco de tous les fichiers `.personal/`)
-- UserMCPBinding : connecteurs MCP personnels
-- Endpoints API fichiers : `GET|PUT /api/v1/workspaces/:uid/files/*`
-- Endpoint chat IA : `POST /api/v1/workspaces/:uid/ai/chat` (SSE streaming, body inclut `prompt_level`)
-- MCP connecteurs dans le web-client : panel activation, config, statut
-- MCPConnectorDefinition + WorkspaceMCPBinding + UserMCPBinding (DB + API)
-- mcp-gateway Rust opérationnel (6 connecteurs : github, jira, notion, postgres, slack, http)
-- Injection tool definitions MCP workspace + personnels dans le prompt LLM
-- Diff viewer dashboard (vue Revue)
-- Routes TCP sozu : SSH et PostgreSQL
-- CLI `koda connect <uid>` (tunnel SSH)
-- Support `devcontainer.json`
-- Sélecteur de thèmes dans web-client
+- `services/orchestrator/` : orchestration Docker complète via bollard + docker-socket-proxy
+- `docker.rs` : `start_workspace`, `stop_workspace`, `delete_workspace`, `ensure_personal_volume`
+- Resource limits systématiques : `cpu_period`, `cpu_quota`, `memory`, `pids_limit` (invariant)
+- Labels `koda.*` obligatoires : `koda.managed`, `koda.type`, `koda.workspace_id`, `koda.org_id`
+- Volume personnel monté en `:ro` à chaque démarrage de workspace
+- `cap_drop: ALL` + `no-new-privileges:true` sur tous les containers
+- Modèles DB : `Workspace`, `WorkspaceGitConfig`, `WorkspaceVolume`, `Template`, `Project`
+- API workspace : `POST|GET|DELETE /api/v1/organizations/:org_id/workspaces`
+- API start/stop : `POST .../workspaces/:id/start`, `POST .../workspaces/:id/stop`
+- `WorkspaceShare` : partage ad-hoc (editor|reviewer|viewer) avec expiration
+- `services/worker/` : `garbage_collector.rs` (GC volumes orphelins toutes les heures) + `prewarm_images` (daily)
+- Snapshots workspace : `POST|GET .../workspaces/:id/snapshots`
+- Réseaux Docker : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services` (stratégie)
 
 ---
 
-## [0.4.0] — Complété · Phase 3
+## [0.1.0] — 2026-06-27 · Phase 0 — Fondations
 
 ### Added
-- CiCdPipeline : build, lint, secret_scan, sast, dependency_scan, image_scan
-- AutomationTrigger : on_push, schedule, manual
-- IncomingWebhookEvent : stockage + HMAC-SHA256
-- Branches éphémères pipeline (git2)
-- **Sécurité intégrée** : SecurityReport, VulnerabilityFinding, SecurityPolicy
-- `secret_scan` : détection credentials (regex + entropie Shannon)
-- `sast` : LLM sécurité dédié (OWASP Top 10 par langage, severity scoring Critical/High/Medium/Low/Info)
-- `dependency_scan` : cargo audit, npm audit, pip-audit
-- `image_scan` : Trivy/Grype sur images workspace
-- Dashboard : rapport sécurité + findings par workspace + blocage Revue si politique atteinte
-- Dashboard : panneau pipelines + historique
-- Webhook Inbox par workspace
-- Pipeline IA : review automatique de diff
-- Workspace Activity Feed
-- Dead-letter stream jobs
-
----
-
-## [1.0.0] — En cours · MVP Stable
-
-### Added
-- RBAC complet (owner, admin, developer, viewer)
-- AuditEvent : traçabilité complète — `admin_audit_logs` API + `AuditEvent` tracé sur impersonation
-- RLS PostgreSQL tables critiques
+- Monorepo : `apps/`, `services/`, `packages/`, `infra/`, `docs/`
+- Workspace Cargo multi-crates : api, orchestrator, worker, git-manager, gateway, mcp-gateway
+- API Axum : inscription, connexion, OAuth Google/GitHub/Authentik OIDC, sessions cookie HttpOnly
+- `require_auth`, `require_super_admin`, `with_org_context` middlewares
+- PostgreSQL + sqlx-migrate : `Organization`, `User`, `Membership`
+- RBAC Teams : `Team`, `TeamMembership`, `TeamProjectAccess`, `TeamQuota`
+- `WorkspaceShare` : modèle DB + API
+- Rôle `super_admin` + bootstrap `BOOTSTRAP_SUPER_ADMIN_EMAIL`
+- `apps/admin/` : panel super_admin (organisations, utilisateurs, impersonation, audit logs, stats infra)
+- `AuditEvent` : traçabilité actions critiques — impersonation tracée
 - TOTP MFA : setup, verify, status, delete (`/api/v1/user/mfa/*`)
-- Tokens M2M avec rotation (`/api/v1/organizations/:org_id/tokens`)
-- OrganizationQuota
-- OpenTelemetry + Sentry
-- **Rate limiting par IP + par utilisateur** : `rate_limit_middleware` global, Redis sliding window ✓
-- **Tests E2E Playwright** : auth setup, workspace lifecycle, MFA, rate limiting, security headers ✓
-- Garbage collector volumes orphelins
-- Pre-warming images Docker
-- **Snapshot workspace** : `POST|GET /api/v1/.../snapshots` ✓
-- **Documentation OpenAPI générée et publiée** : `/swagger-ui` + `/api-docs/openapi.json` ✓
-- **Panel admin complet** : orgs, users, impersonation, audit logs, infra stats ✓
+- Tokens M2M : `POST|GET|DELETE /api/v1/organizations/:org_id/tokens`
+- `SecretRef` : modèle DB + AES-256-GCM
+- Trait `AiProviderAdapter` + implémentation Anthropic HTTP (reqwest)
+- `services/gateway/` : client sozu-command-lib (add/remove HttpFrontend + TcpFrontend)
+- `infra/sozu/sozu.toml` : configuration sozu Docker Compose dev
+- `apps/dashboard/` : Next.js — login, register, liste workspaces, création workspace, settings, page workspace
+- `packages/themes/` : `ThemeRegistry`, `ThemeSwitcher`, 4 skins (default, minimal, pro, light)
+- `packages/shared-types/` + `packages/api-client/` : client HTTP typé
+- Config figment par service : `config/default.yaml` + `.env.example` (merge YAML → env → .env)
+- `TRUSTED_PROXY_CIDRS` + `axum-client-ip` sur tous les services Axum
+- RLS PostgreSQL activé sur 13 tables critiques (`202600010035_enable_rls.sql`)
+- 38 migrations DB couvrant toutes les entités
 
 ### Security
-- Review OWASP Top 10 complète
-- Couverture tests ≥ 75% global, ≥ 90% sécurité/routage
+- `rate_limit_middleware` : 300 req/min par IP, 600 req/min par utilisateur (Redis)
+- Sessions cookie : HttpOnly, SameSite=Strict, expiration configurable
+- Argon2id pour les mots de passe
+- HMAC-SHA256 pour les webhooks entrants
