@@ -19,6 +19,6 @@ mod session;
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
-    let cfg = config::Config::from_env()?;
+    let cfg = config::Config::load()?;
     session::SessionManager::new(cfg).run().await
 }

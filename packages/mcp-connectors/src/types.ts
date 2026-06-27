@@ -113,6 +113,22 @@ export interface WorkspaceMCPBinding {
 }
 
 /**
+ * Binding MCP personnel d'un utilisateur (indépendant des workspaces).
+ * Stocké en DB dans `user_mcp_bindings`. Monté dans tous les workspaces de l'utilisateur.
+ * Distinct de WorkspaceMCPBinding : suit l'utilisateur, pas le workspace.
+ */
+export interface UserMCPBinding {
+  id: string
+  userId: string
+  connectorId: string
+  config: Record<string, unknown>  // valeurs non-secrètes
+  secretRefIds: string[]           // références SecretRef — jamais de credential en clair
+  enabled: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+/**
  * Message échangé avec le MCP gateway (backend Rust).
  */
 export interface MCPCallRequest {

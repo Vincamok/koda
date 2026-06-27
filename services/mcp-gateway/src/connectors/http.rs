@@ -75,7 +75,7 @@ fn build_client(config: &HashMap<String, Value>) -> anyhow::Result<reqwest::Clie
         }
         "basic" => {
             if let Some(val) = config.get("auth_value").and_then(|v| v.as_str()) {
-                let encoded = base64::encode(val);
+                let encoded = super::base64_encode(val);
                 headers.insert("Authorization", format!("Basic {encoded}").parse()?);
             }
         }

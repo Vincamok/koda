@@ -73,47 +73,10 @@ impl McpConnector for JiraConnector {
 
 fn jira_client(email: &str, token: &str) -> anyhow::Result<reqwest::Client> {
     use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, ACCEPT};
-    let creds   = base64_encode(&format!("{email}:{token}"));
+    let creds   = super::base64_encode(&format!("{email}:{token}"));
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_str(&format!("Basic {creds}"))?);
     headers.insert(CONTENT_TYPE,  HeaderValue::from_static("application/json"));
     headers.insert(ACCEPT,        HeaderValue::from_static("application/json"));
     Ok(reqwest::Client::builder().default_headers(headers).build()?)
-}
-
-fn base64_encode(input: &str) -> String {
-    use std::io::Write;
-    let mut buf = Vec::new();
-    {
-        let mut enc = base64_writer(&mut buf);
-        enc.write_all(input.as_bytes()).unwrap();
-    }
-    String::from_utf8(buf).unwrap()
-}
-
-fn base64_writer(out: &mut Vec<u8>) -> impl std::io::Write + '_ {
-    // Inline Base64 encoding — avoids adding a crate for a single use.
-    struct B64Writer<'a> { out: &'a mut Vec<u8> }
-    impl<'a> std::io::Write for B64Writer<'a> {
-        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-            const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-            let mut i = 0;
-            while i + 2 < buf.len() {
-                let n = ((buf[i] as u32) << 16) | ((buf[i+1] as u32) << 8) | (buf[i+2] as u32);
-                self.out.push(TABLE[((n >> 18) & 63) as usize]);
-                self.out.push(TABLE[((n >> 12) & 63) as usize]);
-                self.out.push(TABLE[((n >>  6) & 63) as usize]);
-                self.out.push(TABLE[( n        & 63) as usize]);
-                i += 3;
-            }
-            match buf.len() - i {
-                1 => { let n = (buf[i] as u32) << 16; self.out.extend_from_slice(&[TABLE[((n>>18)&63)as usize], TABLE[((n>>12)&63)as usize], b'=', b'=']); }
-                2 => { let n = ((buf[i] as u32)<<16)|((buf[i+1] as u32)<<8); self.out.extend_from_slice(&[TABLE[((n>>18)&63)as usize], TABLE[((n>>12)&63)as usize], TABLE[((n>>6)&63)as usize], b'=']); }
-                _ => {}
-            }
-            Ok(buf.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
-    }
-    B64Writer { out }
 }

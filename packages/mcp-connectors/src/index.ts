@@ -1,6 +1,7 @@
 export type {
   MCPConnectorDefinition,
   WorkspaceMCPBinding,
+  UserMCPBinding,
   MCPTool,
   MCPResource,
   MCPResourceTemplate,

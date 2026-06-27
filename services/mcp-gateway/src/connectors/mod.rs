@@ -9,6 +9,35 @@ pub mod notion;
 pub mod postgres;
 pub mod slack;
 
+/// Encodage Base64 standard (RFC 4648) sans padding conditionnel.
+/// Partagé entre jira.rs (Basic Auth) et http.rs (auth Basic générique).
+pub(super) fn base64_encode(input: &str) -> String {
+    const TABLE: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bytes = input.as_bytes();
+    let mut out = Vec::with_capacity((bytes.len() + 2) / 3 * 4);
+    let mut i = 0;
+    while i + 2 < bytes.len() {
+        let n = ((bytes[i] as u32) << 16) | ((bytes[i + 1] as u32) << 8) | (bytes[i + 2] as u32);
+        out.push(TABLE[((n >> 18) & 63) as usize]);
+        out.push(TABLE[((n >> 12) & 63) as usize]);
+        out.push(TABLE[((n >> 6) & 63) as usize]);
+        out.push(TABLE[(n & 63) as usize]);
+        i += 3;
+    }
+    match bytes.len() - i {
+        1 => {
+            let n = (bytes[i] as u32) << 16;
+            out.extend_from_slice(&[TABLE[((n >> 18) & 63) as usize], TABLE[((n >> 12) & 63) as usize], b'=', b'=']);
+        }
+        2 => {
+            let n = ((bytes[i] as u32) << 16) | ((bytes[i + 1] as u32) << 8);
+            out.extend_from_slice(&[TABLE[((n >> 18) & 63) as usize], TABLE[((n >> 12) & 63) as usize], TABLE[((n >> 6) & 63) as usize], b'=']);
+        }
+        _ => {}
+    }
+    String::from_utf8(out).unwrap()
+}
+
 /// Résultat d'un appel MCP tool ou resource.
 #[derive(Debug)]
 pub struct McpResult {
