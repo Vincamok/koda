@@ -1,0 +1,129 @@
+{
+  "auth": {
+    "login": "Connexion",
+    "register": "Créer un compte",
+    "logout": "Déconnexion",
+    "email": "Email",
+    "password": "Mot de passe",
+    "display_name": "Nom d'affichage",
+    "login_with": "Se connecter avec {provider}",
+    "no_account": "Pas encore de compte ?",
+    "already_account": "Déjà un compte ?",
+    "sign_in_title": "Bienvenue sur Koda",
+    "sign_in_subtitle": "Connectez-vous à votre compte",
+    "register_title": "Créer un compte",
+    "register_subtitle": "Rejoignez Koda dès aujourd'hui",
+    "or_continue_with": "Ou continuer avec",
+    "forgot_password": "Mot de passe oublié ?",
+    "submitting": "Connexion en cours...",
+    "registering": "Création en cours..."
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "workspaces": "Workspaces",
+    "settings": "Paramètres"
+  },
+  "dashboard": {
+    "title": "Tableau de bord",
+    "welcome": "Bonjour, {name}",
+    "overview": "Vue d'ensemble",
+    "active_workspaces": "Workspaces actifs",
+    "total_workspaces": "Total workspaces",
+    "recent_workspaces": "Workspaces récents",
+    "no_workspaces": "Aucun workspace pour le moment",
+    "create_first": "Créer votre premier workspace"
+  },
+  "workspace": {
+    "title": "Workspaces",
+    "new": "Nouveau workspace",
+    "status": {
+      "created": "Créé",
+      "cloning": "Clonage...",
+      "ready": "Prêt",
+      "starting": "Démarrage...",
+      "running": "En cours",
+      "stopping": "Arrêt...",
+      "stopped": "Arrêté",
+      "reviewing": "En revue",
+      "closed": "Clôturé",
+      "failed": "Erreur"
+    },
+    "create": {
+      "title": "Créer un workspace",
+      "name": "Nom",
+      "git_url": "URL du dépôt Git",
+      "branch": "Branche",
+      "branch_placeholder": "main",
+      "template": "Template",
+      "template_placeholder": "Sélectionner un template",
+      "submit": "Créer",
+      "submitting": "Création en cours...",
+      "cancel": "Annuler",
+      "name_placeholder": "Mon workspace",
+      "git_url_placeholder": "https://github.com/org/repo.git"
+    },
+    "empty": "Aucun workspace",
+    "empty_description": "Créez votre premier workspace pour commencer.",
+    "updated_at": "Mis à jour le {date}",
+    "cpu": "{cores} cœurs",
+    "ram": "{ram} Mo RAM",
+    "open": "Ouvrir"
+  },
+  "settings": {
+    "title": "Paramètres",
+    "profile": "Profil",
+    "locale": "Langue",
+    "theme": "Thème",
+    "save": "Enregistrer",
+    "saving": "Enregistrement...",
+    "saved": "Enregistré",
+    "display_name": "Nom d'affichage",
+    "email": "Email",
+    "email_hint": "L'email ne peut pas être modifié",
+    "locale_options": {
+      "fr": "Français",
+      "en": "English",
+      "es": "Español",
+      "de": "Deutsch"
+    },
+    "theme_options": {
+      "default": "Koda Dark",
+      "light": "Koda Light"
+    }
+  },
+  "errors": {
+    "not_found": "Ressource introuvable",
+    "unauthorized": "Non autorisé",
+    "forbidden": "Accès refusé",
+    "conflict": "Conflit",
+    "bad_request": "Requête invalide",
+    "quota_exceeded": "Quota dépassé",
+    "validation": "Erreur de validation",
+    "internal": "Erreur interne",
+    "unknown": "Erreur inconnue",
+    "workspace": {
+      "not_found": "Workspace introuvable",
+      "quota_exceeded": "Quota de workspaces dépassé"
+    },
+    "plugin": {
+      "not_found": "Plugin introuvable"
+    },
+    "git": {
+      "clone_failed": "Échec du clonage Git"
+    },
+    "mcp": {
+      "connector_error": "Erreur du connecteur MCP"
+    }
+  },
+  "common": {
+    "loading": "Chargement...",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "close": "Fermer",
+    "back": "Retour",
+    "search": "Rechercher",
+    "no_results": "Aucun résultat",
+    "copied": "Copié !",
+    "copy": "Copier"
+  }
+}
