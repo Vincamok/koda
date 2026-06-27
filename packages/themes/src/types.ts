@@ -9,37 +9,26 @@ export type DensityVariant = 'compact' | 'comfortable' | 'spacious'
 export type ColorMode = 'dark' | 'light'
 
 export interface ColorScheme {
-  // Arrière-plans
   '--background': string
   '--background-secondary': string
   '--background-tertiary': string
   '--surface': string
   '--surface-hover': string
   '--surface-active': string
-
-  // Texte
   '--foreground': string
   '--foreground-muted': string
   '--foreground-subtle': string
-
-  // Accents
   '--primary': string
   '--primary-foreground': string
   '--primary-hover': string
   '--secondary': string
   '--secondary-foreground': string
-
-  // Statuts
   '--success': string
   '--warning': string
   '--destructive': string
   '--info': string
-
-  // Bordures
   '--border': string
   '--border-strong': string
-
-  // Spécifiques IDE
   '--editor-background': string
   '--editor-line-highlight': string
   '--editor-selection': string
@@ -47,33 +36,59 @@ export interface ColorScheme {
   '--sidebar-background': string
   '--statusbar-background': string
   '--ai-sidebar-background': string
+  // Extensions libres : toute propriété CSS préfixée --koda-* est acceptée
+  [key: `--koda-${string}`]: string
 }
 
 export interface Typography {
-  fontFamilyUI: string      // Interface (labels, boutons)
-  fontFamilyCode: string    // Éditeur + terminal
-  fontSizeBase: string      // Base rem
+  fontFamilyUI: string
+  fontFamilyCode: string
+  fontSizeBase: string
   lineHeightBase: string
 }
 
 export interface Spacing {
-  borderRadius: string      // rayon de bordure global
-  sidebarWidth: string      // largeur sidebar fichiers
-  aiSidebarWidth: string    // largeur sidebar IA
-  panelMinHeight: string    // hauteur min terminal/panneau bas
+  borderRadius: string
+  sidebarWidth: string
+  aiSidebarWidth: string
+  panelMinHeight: string
 }
 
 export interface Skin {
   id: string
   name: string
   description: string
+  version: string             // SemVer — permet la compatibilité future
+  author?: string
   colorMode: ColorMode
   layout: LayoutVariant
   density: DensityVariant
   colors: ColorScheme
   typography: Typography
   spacing: Spacing
-  previewColor: string      // couleur hex pour la miniature dans le sélecteur
+  previewColor: string
+  tags?: string[]             // ex: ['dark', 'high-contrast', 'community']
 }
 
-export type SkinId = 'default' | 'minimal' | 'pro' | 'light'
+/**
+ * Manifest JSON-sérialisable pour chargement dynamique de thèmes.
+ * Permet l'héritage : `extends` copie le skin de base puis applique les overrides.
+ */
+export interface SkinManifest {
+  id: string
+  name: string
+  description: string
+  version: string
+  author?: string
+  tags?: string[]
+  previewColor: string
+  extends?: string            // id d'un skin de base enregistré dans le registre
+  colorMode?: ColorMode
+  layout?: LayoutVariant
+  density?: DensityVariant
+  colors?: Partial<ColorScheme>
+  typography?: Partial<Typography>
+  spacing?: Partial<Spacing>
+}
+
+export type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] }

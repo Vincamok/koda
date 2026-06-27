@@ -7,10 +7,10 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 
 ### Règles invariantes
 
-1. **UID immuable** : ne jamais modifier l'UID d'un workspace après création. C'est la clé de routage nginxify.
+1. **UID immuable** : ne jamais modifier l'UID d'un workspace après création. C'est la clé de routage sozu.
 2. **organization_id** : toute requête DB sur une entité métier doit filtrer par `organization_id`. Pas d'exception. Le RLS PostgreSQL est activé en complément.
 3. **Secrets** : ne jamais logger, sérialiser ou stocker un secret en clair. Toujours passer par `SecretRef`.
-4. **Path Stripping** : les applications dans les containers ne reçoivent jamais le préfixe `/[UID]/`. nginxify strip ce préfixe avant transmission.
+4. **Path Stripping** : les applications dans les containers ne reçoivent jamais le préfixe `/[UID]/`. sozu strip ce préfixe via `StripPrefix` avant transmission.
 5. **Docker socket** : l'orchestrateur ne passe que par `docker-socket-proxy`. Ne jamais utiliser le socket brut.
 6. **Resource limits** : tout conteneur workspace lancé via `bollard` doit avoir `cpu_period`, `cpu_quota`, `memory`, `pids_limit` définis dans `HostConfig`.
 
@@ -63,6 +63,24 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 - Chat IA : consommer le SSE de `POST /api/v1/workspaces/:uid/ai/chat` via `EventSource`
 - Les patches IA sont affichés en diff Monaco avant application — jamais appliqués silencieusement
 
+**MCP Gateway (`services/mcp-gateway/`)**
+- Tout appel MCP passe par Redis Streams `jobs:mcp` — jamais d'appel direct connecteur depuis l'API
+- Les credentials sont résolus via `SecretResolver` au moment de l'appel, jamais stockés en mémoire au-delà du call
+- Ajouter un connecteur built-in = implémenter `trait McpConnector` + `reg.register()` dans `ConnectorRegistry::new()`
+- Ne jamais logger les valeurs de `config` reçues par `call_tool` (peut contenir des tokens)
+- `McpResult.is_error = true` pour les erreurs métier retournées par l'API distante (ne pas `bail!`)
+
+**MCP Connectors TypeScript (`packages/mcp-connectors/`)**
+- Ajouter un connecteur = implémenter `MCPConnectorDefinition` + `mcpRegistry.register()` dans `src/index.ts`
+- Les `configFields` avec `secret: true` sont masqués dans l'UI et stockés comme `SecretRef` en DB
+- Pas de modifications du code existant pour étendre — pattern Open/Closed
+
+**Thèmes (`packages/themes/`)**
+- Ajouter un skin = `themeRegistry.register(skin)` ou `themeRegistry.loadManifest(manifest)`
+- `SkinManifest.extends` permet l'héritage d'un skin existant (deep merge colors/typography/spacing)
+- `themeRegistry.loadFromUrl(url)` pour le marketplace futur — vérifier la source avant chargement
+- Pas de `SKINS` record statique — toujours passer par `themeRegistry.get(id)`
+
 **CI/CD (Harness)**
 - Pipelines dans `infra/harness/`
 - Merge sur `main` → déploiement prod automatique (Harness pipeline)
@@ -82,7 +100,9 @@ Workspace → CiCdPipeline → AutomationTrigger
 Workspace → IncomingWebhookEvent
 Workspace → TicketRecord
 Workspace → SecretRef
+Workspace → WorkspaceMCPBinding (→ MCPConnectorDefinition, → SecretRef)
 User → AuditEvent
+MCPConnectorDefinition (catalogue — pas de FK workspace)
 ```
 
 ### Ce qu'il ne faut PAS faire
@@ -95,3 +115,5 @@ User → AuditEvent
 - Modifier les règles sozu en éditant des fichiers de config (toujours passer par sozu-command-lib)
 - Gérer les certificats TLS côté applicatif (sozu s'en charge)
 - Écrire du code Rust sans types pour les erreurs (`anyhow` pour les binaires, `thiserror` pour les libs)
+- Appeler un connecteur MCP directement depuis l'API (toujours passer par Redis Streams `jobs:mcp`)
+- Stocker en clair les credentials MCP (toujours via SecretRef)

@@ -19,6 +19,9 @@ Koda est une plateforme de gestion d'environnements de développement à la dema
 | LLM integration | **reqwest** + HTTP direct (AiProviderAdapter trait) | SDK Python |
 | Frontend dashboard | **Next.js** + TypeScript + shadcn/ui + Tailwind | SvelteKit |
 | Web IDE client | **Monaco Editor** + xterm.js + chat IA sidebar | code-server seul |
+| MCP connecteurs | **@koda/mcp-connectors** (registre + 6 built-in) | Intégration directe |
+| MCP gateway | **services/mcp-gateway/** (Rust, trait McpConnector) | Appels HTTP directs |
+| Thèmes — extensibilité | **ThemeRegistry** + SkinManifest (chargement dynamique) | Record statique |
 | BDD | PostgreSQL | — |
 | Migrations | **sqlx-migrate** (fichiers SQL versionnés) | Alembic |
 | Isolation socket Docker | docker-socket-proxy (whitelist API) | Socket brut |
@@ -109,6 +112,8 @@ Plages réservées : SSH `2200-2999`, PostgreSQL `5400-5499`. Stockées dans `Ex
 - `IncomingWebhookEvent` : event webhook entrant stocké (TTL 7j) avant traitement worker
 - `OrganizationQuota` : limites de ressources par organisation
 - `AuditEvent` : traçabilité de toutes les actions critiques
+- `MCPConnectorDefinition` : catalogue des connecteurs MCP disponibles (built-in + custom)
+- `WorkspaceMCPBinding` : connecteur actif dans un workspace avec config + SecretRefs
 
 ## Contraintes non-négociables
 - Pas de Docker-in-Docker (DinD)
@@ -138,9 +143,11 @@ services/
   worker/           # Rust — Redis Streams consumer (jobs async)
   git-manager/      # Rust — clone/branches éphémères (git2)
   gateway/          # Rust — client sozu-command-lib (gestion ExposureRules)
+  mcp-gateway/      # Rust — proxy MCP (trait McpConnector + 5 connecteurs built-in)
 packages/
   shared-types/     # Types TypeScript partagés (dashboard + web-client)
   api-client/       # Client TypeScript généré depuis OpenAPI
+  mcp-connectors/   # Définitions + registre des connecteurs MCP (TypeScript)
 infra/
   docker/           # Dockerfiles + docker-compose.yml
   harness/          # Pipelines Harness (YAML)
@@ -156,3 +163,30 @@ cargo test --workspace             # Tests unitaires Rust
 cargo build --release              # Build production
 sozuctl status                     # État du proxy sozu
 ```
+
+## Architecture MCP
+
+### Flux d'un tool call MCP depuis le web-client
+```
+Chat IA (web-client)
+  → POST /api/v1/workspaces/:uid/ai/chat  (message + connecteurs actifs)
+  → API Axum injecte les tool definitions MCP dans le prompt LLM
+  → LLM retourne un tool_call { connector_id, tool_name, arguments }
+  → API publie dans Redis Stream jobs:mcp
+  → mcp-gateway consomme, résoud les SecretRef, appelle le connecteur Rust
+  → Résultat publié dans Redis → SSE vers le client
+```
+
+### Extensibilité MCP
+**Connecteurs built-in (Rust + TypeScript) :** github, notion, postgres, slack, jira, http
+**Ajout d'un connecteur custom :**
+1. TypeScript : implémenter `MCPConnectorDefinition` + `mcpRegistry.register()`
+2. Rust : implémenter `trait McpConnector` + `registry.register()`
+3. Pas de modification du code existant — pattern Open/Closed
+
+### Extensibilité des thèmes
+**Thèmes built-in :** default, minimal, pro, light
+**Ajout d'un thème custom :**
+- Via code : `themeRegistry.register(mySkin)`
+- Via JSON (DB/marketplace) : `themeRegistry.loadManifest(manifest)` avec `extends: 'default'`
+- Via URL : `themeRegistry.loadFromUrl(url)` (marketplace futur)

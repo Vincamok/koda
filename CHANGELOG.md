@@ -10,7 +10,13 @@
 ### Added
 - Analyse de faisabilité initiale (`docs/FEASIBILITY_ANALYSIS.md`)
 - Décisions architecturales : Rust (Axum + SQLx), sozu gateway, Harness CI/CD
-- Système de thèmes : 4 skins (default, minimal, pro, light) avec layouts distincts
+- Système de thèmes évolutif : `ThemeRegistry` observable, `SkinManifest` avec héritage `extends`, `loadFromUrl()` marketplace
+- 4 skins built-in (default, minimal, pro, light) avec layouts distincts
+- `ThemeSwitcher` avec miniatures `SkinPreview` générées depuis les tokens CSS
+- MCP connecteurs plugins : `@koda/mcp-connectors` (registre TypeScript + 6 connecteurs built-in)
+- `MCPConnectorRegistry` observable (même pattern que ThemeRegistry)
+- `services/mcp-gateway/` : service Rust consommant Redis Streams `jobs:mcp`, 6 connecteurs built-in
+- `McpConnector` trait Rust + `ConnectorRegistry` auto-enregistrement
 - Spécification d'implémentation par module (`docs/IMPLEMENTATION_SPEC.md`)
 - Roadmap versionnée v0.1.0 → v1.0.0
 
@@ -52,6 +58,10 @@
 - Koda Web IDE : Monaco Editor + file tree + terminal xterm.js + chat IA sidebar + git panel
 - Endpoints API fichiers : `GET|PUT /api/v1/workspaces/:uid/files/*`
 - Endpoint chat IA : `POST /api/v1/workspaces/:uid/ai/chat` (SSE streaming)
+- MCP connecteurs dans le web-client : panel activation, config, statut
+- MCPConnectorDefinition + WorkspaceMCPBinding (DB + API)
+- mcp-gateway Rust opérationnel (6 connecteurs : github, jira, notion, postgres, slack, http)
+- Injection tool definitions MCP dans le prompt LLM
 - Diff viewer dashboard (vue Revue)
 - Routes TCP sozu : SSH et PostgreSQL
 - CLI `koda connect <uid>` (tunnel SSH)

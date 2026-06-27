@@ -1,13 +1,13 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { SKINS, DEFAULT_SKIN_ID, getSkin, applySkin } from './index'
-import type { Skin, SkinId } from './types'
+import { themeRegistry, applySkin, DEFAULT_SKIN_ID } from './index'
+import type { Skin } from './types'
 
 interface ThemeContextValue {
   skin: Skin
-  skinId: SkinId
-  setSkin: (id: SkinId) => void
+  skinId: string
+  setSkin: (id: string) => void
   availableSkins: Skin[]
 }
 
@@ -17,33 +17,38 @@ const STORAGE_KEY = 'koda-skin'
 
 interface ThemeProviderProps {
   children: ReactNode
-  defaultSkinId?: SkinId
-  // Si fourni, persiste le choix en DB (appel API au changement)
-  onSkinChange?: (id: SkinId) => Promise<void>
+  defaultSkinId?: string
+  onSkinChange?: (id: string) => Promise<void>
 }
 
 export function ThemeProvider({ children, defaultSkinId, onSkinChange }: ThemeProviderProps) {
-  const [skinId, setSkinIdState] = useState<SkinId>(() => {
+  const [skinId, setSkinIdState] = useState<string>(() => {
     if (typeof window === 'undefined') return defaultSkinId ?? DEFAULT_SKIN_ID
-    const stored = localStorage.getItem(STORAGE_KEY) as SkinId | null
-    return stored ?? defaultSkinId ?? DEFAULT_SKIN_ID
+    return localStorage.getItem(STORAGE_KEY) ?? defaultSkinId ?? DEFAULT_SKIN_ID
   })
 
-  const skin = getSkin(skinId)
+  const [availableSkins, setAvailableSkins] = useState<Skin[]>(() => themeRegistry.list())
+
+  // Écoute les enregistrements dynamiques de nouveaux thèmes
+  useEffect(() => {
+    return themeRegistry.onChange(setAvailableSkins)
+  }, [])
+
+  const skin = themeRegistry.getOrDefault(skinId)
 
   useEffect(() => {
     applySkin(skin)
   }, [skin])
 
-  function setSkin(id: SkinId) {
+  function setSkin(id: string) {
     setSkinIdState(id)
     localStorage.setItem(STORAGE_KEY, id)
-    applySkin(getSkin(id))
+    applySkin(themeRegistry.getOrDefault(id))
     onSkinChange?.(id)
   }
 
   return (
-    <ThemeContext.Provider value={{ skin, skinId, setSkin, availableSkins: Object.values(SKINS) }}>
+    <ThemeContext.Provider value={{ skin, skinId, setSkin, availableSkins }}>
       {children}
     </ThemeContext.Provider>
   )

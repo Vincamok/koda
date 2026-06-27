@@ -85,7 +85,15 @@
 
 ### `src/handlers/ai.rs`
 - `post_workspace_ai_chat(uid)` : reçoit message + fichiers contexte, stream SSE réponse LLM
+  - Charge les `WorkspaceMCPBinding` actifs, injecte tool definitions dans le prompt
+  - Si LLM retourne `tool_call` : publie dans `jobs:mcp`, attend résultat Redis, continue stream
 - `get_workspace_ai_chat_history(uid, cid)` : historique d'une session de chat
+
+### `src/handlers/mcp.rs`
+- `get_mcp_connectors()` : liste `MCPConnectorDefinition` du catalogue (depuis `mcp_connector_definitions`)
+- `get_workspace_mcp_bindings(uid)` : connecteurs actifs du workspace
+- `post_workspace_mcp_binding(uid)` : active un connecteur (config + SecretRefs), crée `WorkspaceMCPBinding`
+- `delete_workspace_mcp_binding(uid, bid)` : désactive un connecteur, révoque SecretRefs
 
 ### `src/handlers/tickets.rs`
 - `get_workspace_tickets(uid)` : liste `TicketRecord` du workspace
@@ -117,6 +125,7 @@
 - `secret.rs` : SecretRef
 - `audit.rs` : AuditEvent
 - `quota.rs` : OrganizationQuota
+- `mcp.rs` : MCPConnectorDefinition, WorkspaceMCPBinding
 
 ### `src/ai/`
 - `provider.rs` / `trait AiProviderAdapter` : `chat_stream(messages, context) -> Stream<String>`
@@ -285,10 +294,20 @@
 ### `src/components/StatusBar.tsx`
 - `StatusBar` : barre inférieure (branche Git, statut connexion, raccourcis)
 
+### `src/components/MCPPanel.tsx`
+- `MCPPanel` : panneau liste connecteurs disponibles + bindings actifs du workspace
+- `ConnectorCard` : carte connecteur (nom, catégorie, icône, outils disponibles, toggle actif)
+- `ConnectorConfigForm` : formulaire dynamique généré depuis `configFields` (inclut champs secret masqués)
+- `ActiveBindingList` : liste des connecteurs activés avec statut + bouton détacher
+- `useMCPConnectors(uid)` : hook `GET /api/v1/mcp/connectors` + `GET /api/v1/workspaces/:uid/mcp/bindings`
+
 ### `src/lib/api.ts`
 - `listFiles(uid, path)`, `readFile(uid, path)`, `writeFile(uid, path, content)`
 - `sendChatMessage(uid, message, context)` → EventSource
 - `stageFiles(uid, paths)`, `commit(uid, message)`, `push(uid)`
+- `listMCPConnectors()` : `GET /api/v1/mcp/connectors`
+- `createMCPBinding(uid, connectorId, config, secretRefs)` : `POST /api/v1/workspaces/:uid/mcp/bindings`
+- `deleteMCPBinding(uid, bindingId)` : `DELETE /api/v1/workspaces/:uid/mcp/bindings/:bindingId`
 
 ---
 
@@ -333,6 +352,84 @@
 
 ---
 
+## `services/mcp-gateway/` — Proxy MCP (Rust)
+
+### `src/main.rs`
+- `main()` : init tracing, charge `Config`, démarre `SessionManager`
+
+### `src/config.rs`
+- `Config { redis_url, database_url }` : depuis env vars `REDIS_URL`, `DATABASE_URL`
+
+### `src/session.rs`
+- `SessionManager` : consommateur Redis Streams `jobs:mcp` (XREADGROUP, XACK)
+- `handle_message(fields)` : résoud SecretRef → route vers connecteur → TODO: publie résultat Redis
+
+### `src/secret.rs`
+- `SecretResolver.resolve_binding_config(binding_id)` : charge config `WorkspaceMCPBinding` depuis DB, résoud SecretRef (TODO: Vault integration)
+
+### `src/connectors/mod.rs`
+- `McpResult { content: Value, is_error: bool }`
+- `trait McpConnector` : `id()`, `list_tools()`, `call_tool(tool, args, config)`, `read_resource(uri, config)`
+- `ConnectorRegistry` : HashMap, auto-enregistre les 6 connecteurs built-in
+
+### `src/connectors/github.rs`
+- `GitHubConnector` : tools `list_issues`, `get_pr`, `search_code`, `create_issue`, `comment_pr`
+- `gh_client(token)` : headers Authorization/Accept/X-GitHub-Api-Version/User-Agent
+- `uri_to_api_url(uri)` : convertit `github://owner/repo/blob/branch/path` → URL API
+
+### `src/connectors/jira.rs`
+- `JiraConnector` : tools `search_issues` (JQL), `get_issue`, `create_issue`, `transition_issue`
+- `jira_client(email, token)` : Basic Auth base64
+
+### `src/connectors/notion.rs`
+- `NotionConnector` : tools `search`, `get_page`, `create_page`, `append_block`
+- Header `Notion-Version: 2022-06-28`
+
+### `src/connectors/postgres.rs`
+- `PostgresConnector` : tools `query`, `list_tables`, `describe_table`
+- `is_write_query(sql)` : bloque INSERT/UPDATE/DELETE/DROP/etc. si `readonly=true`
+- `row_to_json(row)` : sérialise `PgRow` → `serde_json::Value`
+
+### `src/connectors/slack.rs`
+- `SlackConnector` : tools `slack_post_message`, `slack_search_messages`, `slack_list_channels`
+- `slack_client(token)` : header `Authorization: Bearer {bot_token}`
+
+### `src/connectors/http.rs`
+- `HttpConnector` : tools `http_get`, `http_post`, `http_patch`, `http_delete`
+- `build_client(config)` : supporte auth `none | bearer | apikey-header | basic`
+
+### `src/proxy.rs`
+- Stub — futur serveur HTTP/SSE protocole MCP natif pour connecteurs stdio (v0.4.0+)
+
+---
+
+## `packages/mcp-connectors/` — Registre TypeScript MCP
+
+### `src/types.ts`
+- `MCPConnectorDefinition` : id, name, description, version, category, capabilities, configFields, tools, resourceTemplates
+- `WorkspaceMCPBinding` : id, workspaceId, connectorId, config, secretRefIds, enabled
+- `ConfigField` : key, label, type (text/password/url/select/boolean/number/textarea), required, secret
+- `MCPTool`, `MCPResource`, `MCPResourceTemplate`, `MCPPrompt`, `JsonSchema`
+- `MCPCallRequest` / `MCPCallResponse`
+
+### `src/registry.ts`
+- `MCPConnectorRegistry` : observable Map + Set listeners
+- `register()`, `unregister()`, `get()`, `list()`, `listByCategory()`, `listByCapability()`, `search()`
+- Singleton `mcpRegistry`
+
+### `src/connectors/`
+- `github.ts` : 5 tools + 3 resource templates, configFields `[gh_token]`
+- `jira.ts` : 4 tools (JQL search, get, create, transition), configFields `[base_url, email, api_token]`
+- `notion.ts` : 4 tools, configFields `[notion_token]`
+- `postgres.ts` : 3 tools + readonly guard, configFields `[connection_string, readonly, max_rows]`
+- `slack.ts` : 3 tools, configFields `[bot_token]`
+- `http.ts` : 4 tools + 4 auth modes, configFields `[base_url, auth_type, ...]`
+
+### `src/index.ts`
+- Auto-enregistre les 6 connecteurs built-in dans `mcpRegistry` au chargement du module
+
+---
+
 ## `packages/themes/` — Système de thèmes
 
 ### `src/types.ts`
@@ -346,10 +443,29 @@
 - `pro.ts` : Koda Pro (dark, sidebar-left + activity bar, dense)
 - `light.ts` : Koda Light (light, sidebar-left, radius doux)
 
+### `src/registry.ts`
+- `ThemeRegistry` : observable Map + Set listeners
+- `register()`, `unregister()`, `get()`, `getOrDefault()`, `list()`, `extend(baseId, overrides)`
+- `loadManifest(manifest)` : résoud `extends`, construit Skin complet, enregistre
+- `loadFromUrl(url)` : fetch JSON array de `SkinManifest`, charge tous en batch
+- Singleton `themeRegistry`
+
 ### `src/ThemeProvider.tsx`
 - `ThemeProvider` : Context React, applique CSS variables + classe layout sur `<html>`
-- `useTheme()` : hook retournant skin courant + `setSkin(id)`
+- `useTheme()` : hook retournant skin courant + `setSkin(id)` + `availableSkins` (réactif au registre)
 - Persistance : `localStorage` côté client, DB `user.preferred_skin` côté serveur
+- S'abonne à `themeRegistry.onChange()` pour mettre à jour `availableSkins` dynamiquement
+
+### `src/ThemeSwitcher.tsx`
+- `ThemeSwitcher` : radiogroup de boutons avec miniatures `SkinPreview`
+- `SkinPreview` : mini-schéma du layout généré depuis les tokens CSS du skin (sidebar, editor, IA, statusbar)
+
+### `src/css/base.css`
+- Grid CSS pour `[data-layout='sidebar-left']` et `[data-layout='top-nav']`
+- Named areas : titlebar, sidebar, editor, terminal, ai-sidebar, statusbar
+- `top-nav` : sidebar et AI sidebar en overlays (CSS transform animé)
+- Density variables `--spacing-1/2/3` par `data-density`
+- Focus-visible WCAG 2.1 AA avec `--primary` outline
 
 ---
 
@@ -376,4 +492,6 @@
 18. `202600010017_secret_refs_create.sql`
 19. `202600010018_audit_events_create.sql`
 20. `202600010019_workspace_shares_create.sql`
-21. `202600010020_enable_rls.sql` : activation RLS sur tables critiques
+21. `202600010020_mcp_connector_definitions_create.sql`
+22. `202600010021_workspace_mcp_bindings_create.sql`
+23. `202600010022_enable_rls.sql` : activation RLS sur tables critiques

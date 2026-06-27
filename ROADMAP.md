@@ -93,11 +93,21 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
 - [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
 - [ ] Sélecteur de thèmes dans le dashboard et le web-client
 - [ ] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
+- [ ] MCP connecteurs — intégration dans le web-client :
+  - [ ] Modèles DB : `MCPConnectorDefinition`, `WorkspaceMCPBinding`
+  - [ ] `mcp-gateway` : service Rust (Redis Streams consumer, 6 connecteurs built-in)
+  - [ ] Connecteurs built-in : github, jira, notion, postgres, slack, http
+  - [ ] API : `GET /api/v1/mcp/connectors`, `POST|DELETE /api/v1/workspaces/:uid/mcp/bindings`
+  - [ ] Panel MCP dans web-client (activation, config, statut par connecteur)
+  - [ ] Injection tool definitions MCP dans le prompt LLM lors du chat IA
+  - [ ] SecretRef : résolution credentials au moment du tool call, jamais loggé
+  - [ ] `@koda/mcp-connectors` : registre TypeScript + 6 définitions built-in
 
 ### Critères de validation
 - Ouverture web-client → édition fichier → commit visible dans diff viewer
 - Chat IA → patch proposé → appliqué en un clic
 - `koda connect <uid>` établit une session SSH fonctionnelle
+- Activation connecteur GitHub → le chat IA peut lister les issues du repo
 
 ---
 
