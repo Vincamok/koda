@@ -46,6 +46,8 @@ Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy
 - [ ] Rôle `super_admin` : migration + bootstrap via `BOOTSTRAP_SUPER_ADMIN_EMAIL`
 - [ ] `packages/shared-types/` + `packages/api-client/` (client HTTP généré depuis OpenAPI)
 - [ ] `SecretRef` : modèle DB + colonne chiffrée AES-256-GCM
+- [ ] **i18n** : `packages/i18n/` + `next-intl` sur les 3 apps + fichiers messages squelette FR/EN/ES/DE
+- [ ] `user_settings` : migration + API `GET|PUT /api/v1/users/me/settings` (locale, theme)
 
 ### Critères de validation
 - `cargo test --workspace` passe
@@ -119,6 +121,8 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
 - [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
 - [ ] Sélecteur de thèmes dans le dashboard et le web-client
 - [ ] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
+- [ ] **i18n complète** : traductions exhaustives FR/EN/ES/DE sur les 3 apps
+- [ ] Injection langue `UserSettings.locale` en couche 6 du contexte LLM (`AiContextBuilder`)
 - [ ] MCP connecteurs — intégration dans le web-client :
   - [ ] Modèles DB : `MCPConnectorDefinition`, `WorkspaceMCPBinding`
   - [ ] `mcp-gateway` : service Rust (Redis Streams consumer, 6 connecteurs built-in)

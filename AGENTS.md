@@ -98,7 +98,10 @@ Koda est une plateforme de workspaces de développement à la demande. Chaque wo
 **Frontend Dashboard (Next.js)**
 - Composants dans `apps/dashboard/src/components/`
 - Appels API via `apps/dashboard/src/lib/api-client.ts` (jamais de `fetch` brut dans les composants)
-- Internationalisation via clés i18n dès le départ (mono-langue FR au MVP)
+- Internationalisation via `next-intl` : 4 langues MVP (FR, EN, ES, DE) — jamais de texte hardcodé dans les composants, toujours via `t('clé')`
+- Clés partagées entre apps dans `packages/i18n/` (codes d'erreur API, noms d'entités)
+- Détection locale : `UserSettings.locale` (DB) → `Accept-Language` header → défaut `fr`
+- Les codes d'erreur API restent en anglais machine — le frontend les traduit via `packages/i18n/`
 - Accessibilité WCAG 2.1 AA : labels explicites, focus visible, contraste suffisant
 
 **Web IDE Client (`apps/web-client/`)**

@@ -45,6 +45,7 @@ Koda est une plateforme de gestion d'environnements de développement à la dema
 | Workspace clôture | **Libre** — aucun blocage sur la phase `reviewing` | Revue obligatoire |
 | TCP port ranges | **SSH `2200-2999`**, **PostgreSQL `5400-5499`** (réservé dans sozu, stocké dans `ExposureRule.host_port`) | — |
 | Pré-prompts LLM | **6 couches hiérarchiques** (platform → org → lang packs → framework packs → workspace `KODA.md` → personal `ai/instructions.md`), assemblées indépendamment du LLM | Fichier `.claude` unique |
+| i18n / Multilingue | **`next-intl`** sur les 3 apps Next.js + `packages/i18n/` clés partagées ; `UserSettings.locale` ; 4 langues MVP (FR, EN, ES, DE) | Localisation côté Rust |
 
 ## Environnements
 
@@ -433,6 +434,41 @@ Fichier à la racine du repo, commité. Lu par Koda quel que soit le LLM configu
 | Standard (chat) | 1+2+3+4+5+6 (tout) |
 | Deep (analyse complète) | 1+2+3+4+5+6 + git history + CI |
 | Agent | 1+2+3+4+5+6 + outils MCP |
+
+La langue de réponse du LLM est injectée en **couche 6** via `UserSettings.locale` — instruction ajoutée automatiquement par l'`AiContextBuilder` : `"Always respond in the user's language: Français (fr)."`. Les packs (couches 3-4) restent en anglais (langue technique universelle).
+
+## Internationalisation (i18n)
+
+### Architecture
+
+- **Bibliothèque** : `next-intl` sur les 3 apps Next.js (`apps/dashboard/`, `apps/web-client/`, `apps/admin/`)
+- **Clés partagées** : `packages/i18n/` — codes d'erreur API, noms d'entités, messages communs
+- **Fichiers de messages** : `messages/fr.json`, `messages/en.json`, `messages/es.json`, `messages/de.json` par app
+- **Détection locale** : `UserSettings.locale` (DB) → header `Accept-Language` → défaut `fr`
+
+### Langues supportées (MVP)
+
+| Code | Langue |
+|------|--------|
+| `fr` | Français |
+| `en` | Anglais |
+| `es` | Espagnol |
+| `de` | Allemand |
+
+### API — messages d'erreur
+
+Les codes d'erreur restent en **anglais machine** (`WORKSPACE_NOT_FOUND`, `QUOTA_EXCEEDED`…).
+Le frontend les traduit via les clés `packages/i18n/errors.*`. Aucune localisation côté Rust.
+
+### UserSettings
+
+Entité `user_settings(user_id PK → users, locale text DEFAULT 'fr', theme_id text)`.
+- API : `GET|PUT /api/v1/users/me/settings`
+- Dépendance : `users` (migration Phase 0)
+
+### IA — langue de réponse
+
+Voir "Construction du contexte par niveau de prompt" ci-dessus.
 
 ## Interface Administration (`apps/admin/`)
 

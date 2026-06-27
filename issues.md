@@ -38,6 +38,9 @@
 | KODA-018 | chore | Pipeline Harness : lint → test → build image → push registry (toutes branches) | critical | open | KODA-002 |
 | KODA-019 | chore | Pipeline Harness prod : déploiement auto sur merge `main` | critical | open | KODA-018 |
 | KODA-020 | chore | `koda-rust-base` image builder partagée (multi-stage, distroless runtime) | medium | open | KODA-018 |
+| KODA-123 | feature | `packages/i18n/` : clés partagées + squelette messages FR/EN/ES/DE (codes erreur API, entités) | high | open | KODA-001 |
+| KODA-124 | feature | i18n dashboard : `next-intl` setup + `messages/` FR/EN/ES/DE | high | open | KODA-016 KODA-123 |
+| KODA-125 | feature | `user_settings` : migration + API `GET\|PUT /api/v1/users/me/settings` (locale, theme_id) | high | open | KODA-008 |
 
 ---
 
@@ -169,6 +172,9 @@
 | KODA-120 | feature | Auto-détection packs depuis manifestes repo : `Cargo.toml`, `package.json`, `next.config.*`, `go.mod`… | high | open | KODA-118 KODA-041 |
 | KODA-121 | feature | Context builder dans `orchestrator` : assemblage 6 couches (platform→org→lang→framework→KODA.md→personal) par niveau de prompt | critical | open | KODA-118 KODA-120 |
 | KODA-122 | feature | Panel admin — gestion packs : vue built-in (lecture seule) + enrichissement org (instructions additives) | medium | open | KODA-103 KODA-107 KODA-118 |
+| KODA-126 | feature | i18n web-client : `next-intl` + traductions exhaustives FR/EN/ES/DE | high | open | KODA-043 KODA-123 KODA-125 |
+| KODA-127 | feature | i18n admin : `next-intl` + traductions exhaustives FR/EN/ES/DE | medium | open | KODA-103 KODA-123 |
+| KODA-128 | feature | `AiContextBuilder` : injection langue `UserSettings.locale` en couche 6 du contexte LLM | high | open | KODA-121 KODA-125 |
 
 ---
 
