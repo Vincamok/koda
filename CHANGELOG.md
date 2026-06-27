@@ -8,6 +8,9 @@
 ## [Unreleased]
 
 ### Added
+- OpenAPI 3.1 / Swagger UI : `utoipa` v4 + `utoipa-swagger-ui` v7 montés sur `/swagger-ui` et `/api-docs/openapi.json` — 58 endpoints documentés, sécurité cookie session, 13 tags, `ApiDoc` centralisé dans `openapi.rs`
+- `rate_limit_middleware` branché en layer global sur toutes les routes (300 req/min par IP, 600 req/min par utilisateur authentifié, Redis sliding window INCR + EXPIRE)
+- Tests E2E Playwright : 5 bugs corrigés — répertoire `.auth/` manquant (ENOENT), regex label français `/nom du workspace/` → `/^nom$/i`, mode `serial` pour état partagé `workspaceId`, `e2e/.gitignore` protège les tokens de session, middleware rate limiting absent des routes
 - Interface administration (`apps/admin/`) : panel super_admin dédié (quotas, logs, IA, infra, multi-instances)
 - Rôle `super_admin` (plateforme, non org-scoped) avec impersonation tracée
 - `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances Koda depuis un panel central
@@ -114,7 +117,7 @@
 
 ---
 
-## [0.4.0] — À venir · Phase 3
+## [0.4.0] — Complété · Phase 3
 
 ### Added
 - CiCdPipeline : build, lint, secret_scan, sast, dependency_scan, image_scan
@@ -135,21 +138,23 @@
 
 ---
 
-## [1.0.0] — À venir · MVP Stable
+## [1.0.0] — En cours · MVP Stable
 
 ### Added
 - RBAC complet (owner, admin, developer, viewer)
-- AuditEvent : traçabilité complète
+- AuditEvent : traçabilité complète — `admin_audit_logs` API + `AuditEvent` tracé sur impersonation
 - RLS PostgreSQL tables critiques
-- TOTP MFA + tokens M2M rotation
+- TOTP MFA : setup, verify, status, delete (`/api/v1/user/mfa/*`)
+- Tokens M2M avec rotation (`/api/v1/organizations/:org_id/tokens`)
 - OrganizationQuota
 - OpenTelemetry + Sentry
-- Rate limiting (tower middleware)
-- Tests E2E Playwright (parcours critiques)
+- **Rate limiting par IP + par utilisateur** : `rate_limit_middleware` global, Redis sliding window ✓
+- **Tests E2E Playwright** : auth setup, workspace lifecycle, MFA, rate limiting, security headers ✓
 - Garbage collector volumes orphelins
 - Pre-warming images Docker
-- Snapshot workspace
-- Documentation OpenAPI publiée
+- **Snapshot workspace** : `POST|GET /api/v1/.../snapshots` ✓
+- **Documentation OpenAPI générée et publiée** : `/swagger-ui` + `/api-docs/openapi.json` ✓
+- **Panel admin complet** : orgs, users, impersonation, audit logs, infra stats ✓
 
 ### Security
 - Review OWASP Top 10 complète

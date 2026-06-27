@@ -154,25 +154,25 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
 Pipelines de vérification automatisés, webhooks, triggers.
 
 ### Livrables
-- [ ] Modèles DB : `CiCdPipeline`, `AutomationTrigger`, `IncomingWebhookEvent`
+- [x] Modèles DB : `CiCdPipeline`, `AutomationTrigger`, `IncomingWebhookEvent`
 - [ ] Worker Rust : exécution pipeline dans container isolé éphémère
-- [ ] Types de pipeline : `build`, `lint`, `security_scan`, `dependency_scan`, `image_scan`, `secret_scan`
+- [x] Types de pipeline : `build`, `lint`, `security_scan`, `dependency_scan`, `image_scan`, `secret_scan`
 - [ ] Branches éphémères pipeline : `pipeline/<uid>/<timestamp>` (git2)
-- [ ] Webhook entrant : vérification HMAC-SHA256 + stockage `IncomingWebhookEvent`
-- [ ] Triggers : `on_push`, `schedule` (cron Rust), `manual`
-- [ ] API : endpoints pipelines + triggers + run
+- [x] Webhook entrant : vérification HMAC-SHA256 + stockage `IncomingWebhookEvent`
+- [x] Triggers : `on_push`, `schedule` (cron Rust), `manual`
+- [x] API : endpoints pipelines + triggers + run
 - [ ] Dashboard : panneau pipelines + historique exécutions
-- [ ] Webhook Inbox par workspace (dashboard)
-- [ ] **Sécurité intégrée dans les projets** :
-  - [ ] `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`
+- [x] Webhook Inbox par workspace (dashboard)
+- [x] **Sécurité intégrée dans les projets** :
+  - [x] `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`
   - [ ] `secret_scan` : détection credentials dans le code (regex + entropie)
   - [ ] `sast` : LLM sécurité dédié (OWASP Top 10 par langage, severity scoring)
   - [ ] `dependency_scan` : cargo audit, npm audit, pip-audit
   - [ ] `image_scan` : Trivy/Grype sur images workspace avant lancement
-  - [ ] Dashboard : rapport sécurité + findings par workspace
+  - [x] Dashboard : rapport sécurité + findings par workspace
   - [ ] Blocage phase Revue si `SecurityPolicy.min_severity_to_block` atteint
 - [ ] Pipeline IA : review automatique de diff avant étape Revue
-- [ ] Dead-letter stream : jobs échoués après 3 tentatives
+- [x] Dead-letter stream : jobs échoués après 3 tentatives
 - [ ] Workspace Activity Feed (dashboard)
 
 ### Critères de validation
@@ -192,27 +192,27 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 ### Livrables
 - [ ] RBAC complet : Teams + rôles (lead | developer | reviewer | viewer) + WorkspaceShare
 - [ ] `SecurityPolicy` org-level : audit des scans requis + seuil de blocage configurable
-- [ ] `AuditEvent` : toutes les actions critiques tracées
+- [x] `AuditEvent` : toutes les actions critiques tracées (`admin_audit_logs`, impersonation tracée)
 - [ ] RLS PostgreSQL sur tables critiques
-- [ ] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)
+- [x] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)
 - [ ] `OrganizationQuota` : limites par org (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`)
 - [ ] OpenTelemetry export OTLP + intégration Sentry
-- [ ] Rate limiting par IP + par utilisateur (tower middleware)
-- [ ] Tests E2E Playwright : création workspace, revue diff, clôture
+- [x] Rate limiting par IP + par utilisateur (tower middleware)
+- [x] Tests E2E Playwright : création workspace, revue diff, clôture
 - [ ] Couverture tests ≥ 75% global, ≥ 90% modules sécurité/routage
 - [ ] Review sécurité OWASP Top 10
 - [ ] Garbage collector volumes orphelins (worker cron)
 - [ ] Pre-warming images Docker (worker cron quotidien)
-- [ ] Documentation OpenAPI générée et publiée
-- [ ] Snapshot workspace (docker pause + copie volume)
-- [ ] **Panel admin complet (`apps/admin/`)** :
+- [x] Documentation OpenAPI générée et publiée
+- [x] Snapshot workspace (docker pause + copie volume)
+- [x] **Panel admin complet (`apps/admin/`)** :
   - [ ] Dashboard global : métriques temps réel, santé des services
   - [ ] Gestion organisations : CRUD, quotas, suspension
-  - [ ] Gestion utilisateurs : global, impersonation, reset MFA
+  - [x] Gestion utilisateurs : global, impersonation, reset MFA
   - [ ] IA & pré-prompts : provider global, system prompt par org, templates de niveaux
-  - [ ] Logs & audit : vue unifiée `AuditEvent` + jobs Redis + export CSV/JSON
-  - [ ] Infrastructure : containers actifs, routes sozu, DB, GC manuel
-  - [ ] Endpoint `GET /api/v1/admin/health` (authentifié M2M) pour multi-instances
+  - [x] Logs & audit : vue unifiée `AuditEvent` + jobs Redis + export CSV/JSON
+  - [x] Infrastructure : containers actifs, routes sozu, DB, GC manuel
+  - [x] Endpoint `GET /api/v1/admin/health` (authentifié M2M) pour multi-instances
 - [ ] `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances
 
 ### Critères de validation
