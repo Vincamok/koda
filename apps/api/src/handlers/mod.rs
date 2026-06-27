@@ -1,6 +1,11 @@
+pub mod admin;
 pub mod auth;
 pub mod ide;
+pub mod mfa;
 pub mod orgs;
 pub mod personal;
+pub mod pipelines;
+pub mod teams;
+pub mod tokens;
 pub mod user_settings;
 pub mod workspaces;

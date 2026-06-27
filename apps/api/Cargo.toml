@@ -37,6 +37,7 @@ jsonwebtoken = { workspace = true }
 validator = { workspace = true }
 aes-gcm = { workspace = true }
 async-trait = { workspace = true }
+totp-rs = { workspace = true }
 
 # API-specific
 futures = "0.3"
@@ -46,3 +47,6 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 lazy_static = "1"
 regex = "1"
 hex = "0.4"
+sha2 = { workspace = true }
+hmac = { workspace = true }
+base32 = "0.4"

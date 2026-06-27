@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod audit;
 pub mod config;
 pub mod db;
 pub mod error;

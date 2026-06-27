@@ -6,7 +6,8 @@ use axum::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{error::AppError, models::user::AuthUser};
+pub use crate::models::user::AuthUser;
+use crate::error::AppError;
 
 /// Carries resolved org context injected by with_org_context middleware.
 #[derive(Clone)]
@@ -86,7 +87,7 @@ pub async fn with_org_context(
         )
         .fetch_optional(&pool)
         .await?
-        .ok_or(AppError::Forbidden)?;
+        .ok_or_else(|| AppError::Forbidden("not a member of this organization".into()))?;
         membership.role
     };
 
@@ -111,7 +112,7 @@ pub async fn require_super_admin(
         .ok_or(AppError::Unauthorized)?;
 
     if !auth_user.is_super_admin {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("super_admin required".into()));
     }
 
     Ok(next.run(request).await)

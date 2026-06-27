@@ -81,7 +81,6 @@ impl OrchestratorWorker {
             .get("payload")
             .and_then(|v| match v {
                 redis::Value::Data(b) => Some(String::from_utf8_lossy(b).into_owned()),
-                redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).into_owned()),
                 _ => None,
             })
             .context("missing payload field")?;
@@ -200,7 +199,6 @@ impl OrchestratorWorker {
             .get("payload")
             .and_then(|v| match v {
                 redis::Value::Data(b) => Some(String::from_utf8_lossy(b).into_owned()),
-                redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).into_owned()),
                 _ => None,
             })
             .unwrap_or_default();
@@ -212,25 +210,23 @@ impl OrchestratorWorker {
     }
 
     async fn process_pending(&mut self) -> anyhow::Result<()> {
-        let pending: redis::streams::StreamPendingReply = self
+        let pending: redis::streams::StreamPendingCountReply = self
             .redis
-            .xpending(STREAM, &self.group, "-", "+", 10i64, None::<&str>)
+            .xpending_count(STREAM, &self.group, "-", "+", 10usize)
             .await
-            .unwrap_or(redis::streams::StreamPendingReply::Empty);
+            .unwrap_or_default();
 
-        if let redis::streams::StreamPendingReply::Data(data) = pending {
-            for entry in data.ids {
-                if entry.times_delivered >= MAX_RETRIES {
-                    tracing::warn!(msg_id = %entry.id, "max retries reached, sending to dead-letter");
-                    let _: Result<(), _> = self
-                        .redis
-                        .xack(STREAM, &self.group, &[&entry.id])
-                        .await;
-                    let _: Result<String, _> = self
-                        .redis
-                        .xadd(DEAD_LETTER, "*", &[("original_id", &entry.id)])
-                        .await;
-                }
+        for entry in pending.ids {
+            if entry.times_delivered >= MAX_RETRIES as usize {
+                tracing::warn!(msg_id = %entry.id, "max retries reached, sending to dead-letter");
+                let _: Result<(), _> = self
+                    .redis
+                    .xack(STREAM, &self.group, &[&entry.id])
+                    .await;
+                let _: Result<String, _> = self
+                    .redis
+                    .xadd(DEAD_LETTER, "*", &[("original_id", &entry.id)])
+                    .await;
             }
         }
 

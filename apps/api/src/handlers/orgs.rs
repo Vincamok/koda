@@ -16,7 +16,7 @@ use crate::{error::AppError, middleware::auth::AuthUser, AppState};
 pub struct CreateOrgRequest {
     #[validate(length(min = 1, max = 120))]
     pub name: String,
-    #[validate(length(min = 1, max = 60), regex(path = "SLUG_REGEX"))]
+    #[validate(length(min = 1, max = 60), regex(path = *SLUG_REGEX))]
     pub slug: String,
 }
 
@@ -173,7 +173,7 @@ pub async fn post_org_member(
     // Only owner/admin can invite
     let caller_role = auth.org_role.as_deref().unwrap_or("");
     if !["owner", "admin", "super_admin"].contains(&caller_role) {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("insufficient role".into()));
     }
 
     let target_user = sqlx::query_as!(
@@ -219,7 +219,7 @@ pub async fn patch_org_member(
 
     let caller_role = auth.org_role.as_deref().unwrap_or("");
     if !["owner", "super_admin"].contains(&caller_role) {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("insufficient role".into()));
     }
 
     sqlx::query!(
@@ -243,7 +243,7 @@ pub async fn delete_org_member(
 ) -> Result<impl IntoResponse, AppError> {
     let caller_role = auth.org_role.as_deref().unwrap_or("");
     if !["owner", "admin", "super_admin"].contains(&caller_role) {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("insufficient role".into()));
     }
 
     sqlx::query!(

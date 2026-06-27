@@ -4,6 +4,14 @@ use reqwest::Client;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[derive(sqlx::FromRow)]
+struct BindingRow {
+    id: Uuid,
+    workspace_id: Uuid,
+    health_check_url: Option<String>,
+    plugin_name: String,
+}
+
 /// Periodically probe all active plugin bindings and update their health status.
 pub struct PluginProber {
     pub pool: PgPool,
@@ -22,7 +30,7 @@ impl PluginProber {
     }
 
     async fn probe_all(&self) -> anyhow::Result<()> {
-        let bindings = sqlx::query!(
+        let bindings = sqlx::query_as::<_, BindingRow>(
             r#"SELECT wpb.id, wpb.workspace_id, pd.health_check_url, pd.name as plugin_name
                FROM workspace_plugin_bindings wpb
                JOIN plugin_definitions pd ON pd.id = wpb.plugin_definition_id

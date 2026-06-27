@@ -93,7 +93,7 @@ pub async fn post_workspace(
 
     let caller_role = auth.org_role.as_deref().unwrap_or("");
     if !["owner", "admin", "member", "super_admin"].contains(&caller_role) {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("insufficient role".into()));
     }
 
     // Enforce quota
@@ -381,7 +381,7 @@ pub async fn delete_workspace(
 ) -> Result<impl IntoResponse, AppError> {
     let caller_role = auth.org_role.as_deref().unwrap_or("");
     if !["owner", "admin", "super_admin"].contains(&caller_role) {
-        return Err(AppError::Forbidden);
+        return Err(AppError::Forbidden("insufficient role".into()));
     }
 
     let ws = sqlx::query!(

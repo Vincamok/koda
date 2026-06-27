@@ -81,7 +81,6 @@ impl GitWorker {
             .get("payload")
             .and_then(|v| match v {
                 redis::Value::Data(b) => Some(String::from_utf8_lossy(b).into_owned()),
-                redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).into_owned()),
                 _ => None,
             })
             .context("missing payload")?;
@@ -225,7 +224,7 @@ impl GitWorker {
             .get("payload")
             .and_then(|v| match v {
                 redis::Value::Data(b) => Some(String::from_utf8_lossy(b).into_owned()),
-                redis::Value::BulkString(b) => Some(String::from_utf8_lossy(b).into_owned()),
+                redis::Value::Data(b) => Some(String::from_utf8_lossy(b).into_owned()),
                 _ => None,
             })
             .unwrap_or_default();

@@ -1,7 +1,15 @@
 use axum::{http::StatusCode, response::{IntoResponse, Response}, Json};
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use thiserror::Error;
 use uuid::Uuid;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ErrorBody {
+    pub code: String,
+    pub message: String,
+    pub request_id: String,
+}
 
 #[derive(Debug, Error)]
 pub enum AppError {
@@ -11,8 +19,8 @@ pub enum AppError {
     #[error("unauthorized")]
     Unauthorized,
 
-    #[error("forbidden")]
-    Forbidden,
+    #[error("forbidden: {0}")]
+    Forbidden(String),
 
     #[error("conflict: {0}")]
     Conflict(String),
@@ -38,7 +46,7 @@ impl AppError {
         match self {
             AppError::NotFound => (StatusCode::NOT_FOUND, "NOT_FOUND"),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "UNAUTHORIZED"),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "FORBIDDEN"),
+            AppError::Forbidden(_) => (StatusCode::FORBIDDEN, "FORBIDDEN"),
             AppError::Conflict(_) => (StatusCode::CONFLICT, "CONFLICT"),
             AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "BAD_REQUEST"),
             AppError::QuotaExceeded(_) => (StatusCode::UNPROCESSABLE_ENTITY, "QUOTA_EXCEEDED"),

@@ -1,4 +1,6 @@
 mod config;
+mod cron_scheduler;
+mod garbage_collector;
 mod pipeline_runner;
 mod plugin_prober;
 
@@ -9,6 +11,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use crate::{
     config::WorkerConfig,
+    cron_scheduler::CronScheduler,
+    garbage_collector::GarbageCollector,
     pipeline_runner::PipelineRunner,
     plugin_prober::PluginProber,
 };
@@ -51,10 +55,20 @@ async fn main() -> anyhow::Result<()> {
         consumer: config.consumer_name.clone(),
     };
 
-    // Run prober and pipeline runner concurrently
+    let cron = CronScheduler {
+        pool: pool.clone(),
+    };
+
+    let gc = GarbageCollector {
+        pool: pool.clone(),
+        docker_host: config.docker_host.clone(),
+    };
+
     tokio::try_join!(
         prober.run(),
         runner.run(),
+        cron.run(),
+        gc.run(),
     )?;
 
     Ok(())

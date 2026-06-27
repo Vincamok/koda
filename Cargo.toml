@@ -32,7 +32,7 @@ anyhow = "1"
 thiserror = "1"
 
 # Logging / tracing
-tracing = "1"
+tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 
 # IDs
@@ -72,3 +72,8 @@ aes-gcm = "0.10"
 
 # TOTP
 totp-rs = { version = "5", features = ["qr"] }
+
+# Crypto
+sha2 = "0.10"
+hmac = "0.12"
+hex = "0.4"
