@@ -18,6 +18,7 @@ RUN npm ci && \
     npm run build --workspace=@koda/i18n 2>/dev/null || true && \
     npm run build --workspace=@koda/api-client 2>/dev/null || true && \
     cd apps/admin && npx next build && \
+    mkdir -p /app/apps/admin/public && \
     cd /app && rm -rf node_modules
 
 FROM node:20-alpine AS runner
