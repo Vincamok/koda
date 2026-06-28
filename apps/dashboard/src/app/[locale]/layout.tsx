@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import type { Metadata } from 'next'
 import { NextIntlClientProvider } from 'next-intl'
-import { getMessages, getTranslations } from 'next-intl/server'
+import { getMessages, getTranslations, setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
 import { SUPPORTED_LOCALES, type Locale } from '@koda/i18n'
 import { ToastProvider } from '@/components/ui/toast'
@@ -10,6 +10,8 @@ interface LocaleLayoutProps {
   children: ReactNode
   params: { locale: string }
 }
+
+export const dynamic = 'force-dynamic'
 
 export async function generateStaticParams() {
   return SUPPORTED_LOCALES.map((locale) => ({ locale }))
@@ -40,6 +42,7 @@ export default async function LocaleLayout({
     notFound()
   }
 
+  setRequestLocale(locale)
   const messages = await getMessages()
 
   return (

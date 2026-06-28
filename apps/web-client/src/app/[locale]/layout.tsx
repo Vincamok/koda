@@ -1,5 +1,5 @@
 import { NextIntlClientProvider } from 'next-intl'
-import { getMessages } from 'next-intl/server'
+import { getMessages, setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
 import { SUPPORTED_LOCALES, type Locale } from '@koda/i18n'
 
@@ -14,6 +14,7 @@ export function generateStaticParams() {
 
 export default async function LocaleLayout({ children, params: { locale } }: Props) {
   if (!SUPPORTED_LOCALES.includes(locale as Locale)) notFound()
+  setRequestLocale(locale)
   const messages = await getMessages()
   return (
     <html lang={locale} className="dark h-full">

@@ -9,11 +9,14 @@
 
 ---
 
-## [1.1.1] — 2026-06-28 · Fix build OOM Next.js
+## [1.1.1] — 2026-06-28 · Fix build OOM + next-intl static rendering
 
 ### Fixed
 - Dockerfiles dashboard, admin, web-client : `npm ci` + build + `rm -rf node_modules` en un seul RUN → Kaniko ne snapshote plus les 440 packages de node_modules (résout OOM)
 - `apps/dashboard/next.config.js` : ajout `output: 'standalone'` (prérequis pour que le standalone bundle fonctionne sans node_modules)
+- `i18n.ts` (admin, dashboard, web-client) : migration de `{ locale }` (déprécié) vers `{ requestLocale }` — retourne aussi `locale` dans la config ; élimine le rendu dynamique forcé par next-intl
+- Layouts `[locale]` : ajout `setRequestLocale(locale)` pour opt-in au rendu statique next-intl
+- Layouts admin + dashboard : `export const dynamic = 'force-dynamic'` — toutes les pages authentifiées (cookies/session) sont SSR, pas pré-rendues au build
 
 ---
 
