@@ -9,6 +9,16 @@
 
 ---
 
+## [1.1.5] — 2026-06-28 · Fix edition2024 crates incompatibles avec Rust < 1.85
+
+### Fixed
+- Tous les Dockerfiles Rust : ajout de `RUN rustup update stable && rustup default stable` juste après le FROM — force l'upgrade vers le Rust stable courant même si l'image CI a un Rust périmé (ex. 1.79.0)
+- `Cargo.lock` : downgrade `zeroize` de `1.9.0` → `1.8.1` (évite l'exigence `edition2024`)
+- `Cargo.lock` : downgrade `proc-macro-crate` de `3.5.0` → `2.0.2` + `toml_edit` `0.25.12` → `0.20.2` (brise la chaîne `utoipa-swagger-ui → zip → num_enum → proc-macro-crate → toml_edit → indexmap ≥ 2.13`)
+- `Cargo.lock` : downgrade `indexmap` de `2.14.0` → `2.11.4` (dernier satisfaisant `toml v0.9` via `sozu-command-lib`, sans `edition2024`)
+
+---
+
 ## [1.1.4] — 2026-06-28 · Fix Rust edition2024 / indexmap 2.14 incompatibility
 
 ### Fixed

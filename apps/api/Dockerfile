@@ -1,6 +1,7 @@
 FROM rust:1.88-slim AS builder
 ENV CARGO_BUILD_JOBS=1
 ENV SQLX_OFFLINE=true
+RUN rustup update stable && rustup default stable
 WORKDIR /build
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
