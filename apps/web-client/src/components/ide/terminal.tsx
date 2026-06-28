@@ -90,7 +90,20 @@ export function Terminal({ workspaceId }: TerminalProps) {
         }
       })
 
-      const resizeObs = new ResizeObserver(() => fitAddon.fit())
+      // Send resize event to backend (0x01 + u16 cols BE + u16 rows BE)
+      const sendResize = () => {
+        fitAddon.fit()
+        if (ws.readyState === WebSocket.OPEN) {
+          const { cols, rows } = term
+          const buf = new Uint8Array(5)
+          buf[0] = 0x01
+          new DataView(buf.buffer).setUint16(1, cols, false)
+          new DataView(buf.buffer).setUint16(3, rows, false)
+          ws.send(buf)
+        }
+      }
+
+      const resizeObs = new ResizeObserver(() => sendResize())
       if (containerRef.current) {
         resizeObs.observe(containerRef.current)
       }

@@ -144,3 +144,86 @@ pub fn detect_packs(manifest_files: &[&str], dep_names: &[&str]) -> (Vec<String>
 
     (lang_packs, framework_packs)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn builder_produces_ordered_layers() {
+        let ctx = AiContextBuilder::new()
+            .platform_prompt("platform")
+            .org_prompt("org")
+            .lang_packs(vec!["use rust".into()])
+            .koda_md("# KODA")
+            .locale("en")
+            .personal_instructions("my instructions")
+            .build(vec![], vec![]);
+
+        // Layers 1, 2, 3, 5, 6 set; layer 4 (framework) skipped
+        assert_eq!(ctx.system_layers.len(), 5);
+        assert_eq!(ctx.system_layers[0], "platform");
+        assert_eq!(ctx.system_layers[1], "org");
+        assert_eq!(ctx.system_layers[2], "use rust");
+        assert_eq!(ctx.system_layers[3], "# KODA");
+        assert!(ctx.system_layers[4].contains("Always respond in English"));
+        assert!(ctx.system_layers[4].contains("my instructions"));
+    }
+
+    #[test]
+    fn locale_fr_injects_french_instruction() {
+        let ctx = AiContextBuilder::new()
+            .locale("fr")
+            .personal_instructions("")
+            .build(vec![], vec![]);
+
+        assert_eq!(ctx.system_layers.len(), 1);
+        assert!(ctx.system_layers[0].contains("français"));
+    }
+
+    #[test]
+    fn detect_packs_rust_axum() {
+        let manifests = &["Cargo.toml"];
+        let deps = &["axum", "sqlx", "tokio"];
+        let (langs, frameworks) = detect_packs(manifests, deps);
+        assert!(langs.contains(&"rust".to_string()));
+        assert!(frameworks.contains(&"axum".to_string()));
+        assert!(frameworks.contains(&"sqlx".to_string()));
+    }
+
+    #[test]
+    fn detect_packs_nextjs() {
+        let manifests = &["package.json", "next.config.ts"];
+        let deps = &["next", "react", "typescript"];
+        let (langs, frameworks) = detect_packs(manifests, deps);
+        assert!(langs.contains(&"typescript".to_string()));
+        assert!(frameworks.contains(&"nextjs".to_string()));
+        assert!(frameworks.contains(&"react".to_string()));
+    }
+
+    #[test]
+    fn detect_packs_empty_input() {
+        let (langs, frameworks) = detect_packs(&[], &[]);
+        assert!(langs.is_empty());
+        assert!(frameworks.is_empty());
+    }
+
+    #[test]
+    fn builtin_lang_packs_exist() {
+        assert!(builtin_lang_pack("rust").is_some());
+        assert!(builtin_lang_pack("typescript").is_some());
+        assert!(builtin_lang_pack("python").is_some());
+        assert!(builtin_lang_pack("go").is_some());
+        assert!(builtin_lang_pack("sql").is_some());
+        assert!(builtin_lang_pack("unknown").is_none());
+    }
+
+    #[test]
+    fn builtin_framework_packs_exist() {
+        assert!(builtin_framework_pack("axum").is_some());
+        assert!(builtin_framework_pack("react").is_some());
+        assert!(builtin_framework_pack("nextjs").is_some());
+        assert!(builtin_framework_pack("sqlx").is_some());
+        assert!(builtin_framework_pack("unknown").is_none());
+    }
+}

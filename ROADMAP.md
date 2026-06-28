@@ -102,15 +102,15 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
 - [x] `koda-web-ide` plugin complet :
   - [x] Monaco Editor (`apps/web-client/src/components/ide/code-editor.tsx`)
   - [x] File tree + `GET|PUT /api/v1/workspaces/:uid/files/*`
-  - [ ] Terminal xterm.js via WebSocket sozu
+  - [x] Terminal xterm.js via WebSocket sozu
   - [x] Chat IA sidebar — **5 niveaux de prompt** (nano, quick, standard, deep, agent)
   - [x] Filtre secrets avant envoi IA (pas de `.env`, `*.key` dans le contexte)
   - [x] Détection du device → mode `full-ide | tablet-ide | mobile-view`
   - [x] Git panel (diff, stage, commit, push)
 - [x] **PersonalSpace complet** :
   - [x] Volume Docker `koda-personal-<user-uid>` monté en read-only dans chaque workspace
-  - [ ] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
-  - [ ] Git config personnelle (`~/.personal/git/.gitconfig`) montée dans container
+  - [x] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
+  - [x] Git config personnelle (`~/.personal/git/.gitconfig`) montée dans container
   - [x] Panel "Mon espace" dans web-client : édition Monaco de tous les fichiers `.personal/`
   - [x] Fusion `ai/instructions.md` personnel + workspace `KODA.md` dans le contexte LLM (6 couches)
   - [x] `UserMCPBinding` : connecteurs MCP personnels
@@ -118,7 +118,7 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [x] Notes par workspace (`notes/workspace-notes/<uid>.md`)
 - [x] Diff viewer dans le dashboard (vue Revue, étape 7)
 - [x] Routes TCP sozu : SSH (`2200-2999`), PostgreSQL (`5400-5499`)
-- [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
+- [x] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
 - [x] Sélecteur de thèmes dans le dashboard et le web-client
 - [x] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
 - [x] **i18n complète** : traductions exhaustives FR/EN/ES/DE sur les 3 apps
@@ -196,11 +196,11 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 - [x] RLS PostgreSQL sur tables critiques (`202600010035_enable_rls.sql`)
 - [x] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)
 - [x] `OrganizationQuota` : limites par org (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`)
-- [ ] OpenTelemetry export OTLP + intégration Sentry
+- [x] OpenTelemetry export OTLP + intégration Sentry
 - [x] Rate limiting par IP + par utilisateur (tower middleware — `rate_limit.rs`)
 - [x] Tests E2E Playwright : création workspace, revue diff, clôture
-- [ ] Couverture tests ≥ 75% global, ≥ 90% modules sécurité/routage
-- [ ] Review sécurité OWASP Top 10
+- [x] Couverture tests ≥ 75% global, ≥ 90% modules sécurité/routage
+- [x] Review sécurité OWASP Top 10
 - [x] Garbage collector volumes orphelins (worker cron — `garbage_collector.rs`)
 - [x] Pre-warming images Docker (worker cron quotidien — `garbage_collector.rs`)
 - [x] Documentation OpenAPI générée et publiée (`/swagger-ui` + `/api-docs/openapi.json`)

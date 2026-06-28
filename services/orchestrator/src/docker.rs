@@ -162,7 +162,9 @@ impl DockerManager {
             network_mode: Some(services_net.clone()),
             binds: Some(vec![
                 format!("{workspace_volume}:/workspace"),
+                // Personal space: full volume read-only + git config at expected path
                 format!("{personal_volume}:/personal:ro"),
+                format!("{personal_volume}:/root/.personal:ro"),
             ]),
             // No --privileged, no extra capabilities
             cap_drop: Some(vec!["ALL".to_string()]),

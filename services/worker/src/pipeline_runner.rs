@@ -1349,3 +1349,47 @@ fn default_command_for(pipeline_type: &str) -> &'static str {
         _ => "echo 'pipeline complete'",
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entropy_of_uniform_string_is_zero() {
+        // All same character → entropy 0
+        assert_eq!(shannon_entropy("aaaaaaaaaa"), 0.0);
+    }
+
+    #[test]
+    fn entropy_of_empty_string_is_zero() {
+        assert_eq!(shannon_entropy(""), 0.0);
+    }
+
+    #[test]
+    fn high_entropy_random_token() {
+        // A typical API token should have entropy > 4.0
+        let token = "sk-ant-api03-Zy9mNqRxLv2T8wBpKjHnUoEs4aFdXcQiGb1YM7WPt6CeA0Dh";
+        assert!(shannon_entropy(token) > 4.0, "expected high entropy for API token");
+    }
+
+    #[test]
+    fn low_entropy_word() {
+        let word = "hello";
+        assert!(shannon_entropy(word) < 3.0, "expected low entropy for simple word");
+    }
+
+    #[test]
+    fn should_skip_git_directory() {
+        assert!(should_skip_path("/repo/.git/config"));
+        assert!(should_skip_path("/repo/node_modules/lib/index.js"));
+        assert!(!should_skip_path("/repo/src/main.rs"));
+    }
+
+    #[test]
+    fn should_skip_binary_and_lock_files() {
+        assert!(should_skip_path("/repo/Cargo.lock"));
+        assert!(should_skip_path("/repo/assets/logo.png"));
+        assert!(should_skip_path("/repo/module.wasm"));
+        assert!(!should_skip_path("/repo/src/config.rs"));
+    }
+}

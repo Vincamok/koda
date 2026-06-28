@@ -9,6 +9,28 @@
 
 ---
 
+## [0.4.4] — 2026-06-28 · Phase 2 completion + tests
+
+### Added
+- **WebSocket terminal** : `GET /api/v1/ws/:workspace_id/terminal` — exec PTY dans le container via bollard + axum WebSocket ; support resize (protocole 5 octets `0x01 + cols + rows`) ; sourcing des shell configs `.personal/` au démarrage
+- **`koda connect <uid>`** : CLI Rust (`apps/cli/`) — résout l'hôte SSH via `GET /api/v1/workspaces/:uid/ssh` puis invoque `ssh` ; sous-commande `koda list --org <id>` pour lister les workspaces
+- **`GET /api/v1/workspaces/:uid/ssh`** : retourne `ssh_host` + `ssh_port` depuis les `exposure_rules` TCP du workspace
+- **Terminal xterm.js** : envoi resize au backend (`sendResize` → paquet binaire 5 octets) ; terminal.tsx branché sur le bon endpoint WebSocket
+- **Personal git config** : volume personnel monté en `/root/.personal:ro` dans les containers workspace (orchestrateur) + copie `.gitconfig` au démarrage du terminal
+- **OpenTelemetry OTLP + Sentry** : déjà implémentés dans `main.rs`, check-off ROADMAP
+- **Tests unitaires** :
+  - `cron_scheduler.rs` : 7 tests (wildcards, valeurs exactes, steps, ranges, listes, expressions invalides)
+  - `pipeline_runner.rs` : 5 tests (entropie Shannon, skip paths, tokens haute entropie)
+  - `ai/context_builder.rs` : 7 tests (layers ordonnées, locale, detect_packs, lang/framework packs)
+  - `handlers/ide.rs` : 3 tests (secret file detection, non-secrets, pack detection par extension)
+  - `handlers/personal.rs` : 4 tests (paths autorisés, slash, path traversal, paths arbitraires)
+
+### Changed
+- axum workspace features : ajout `ws` pour le support WebSocket
+- Orchestrateur : double montage du volume personnel (`/personal:ro` + `/root/.personal:ro`)
+
+---
+
 ## [0.4.3] — 2026-06-28 · Phase 4 — Sécurité, observabilité, instances & espace personnel
 
 ### Added

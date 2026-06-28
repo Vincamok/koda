@@ -689,3 +689,52 @@ pub async fn get_workspace_events(
 
     Sse::new(ReceiverStream::new(rx)).keep_alive(KeepAlive::default())
 }
+
+// ── GET /api/v1/workspaces/:uid/ssh ──────────────────────────────────────────
+// Returns the SSH host + port assigned by sozu for koda connect.
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceSshInfo {
+    pub ssh_host: String,
+    pub ssh_port: i32,
+}
+
+pub async fn get_workspace_ssh(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(uid): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    // Resolve workspace by UID and verify user has access
+    let row = sqlx::query!(
+        r#"
+        SELECT w.id, er.host_port
+        FROM workspaces w
+        JOIN memberships m ON m.organization_id = w.organization_id AND m.user_id = $2
+        LEFT JOIN exposure_rules er ON er.workspace_id = w.id AND er.rule_type = 'tcp' AND er.internal_port = 22
+        WHERE w.uid = $1 AND w.status != 'closed'
+        LIMIT 1
+        "#,
+        uid,
+        auth.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let port = row.host_port.unwrap_or(2200);
+
+    let host = state.config.app_base_url
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .split('/')
+        .next()
+        .unwrap_or("localhost")
+        .to_string();
+
+    Ok(Json(serde_json::json!({
+        "data": {
+            "ssh_host": host,
+            "ssh_port": port
+        }
+    })))
+}

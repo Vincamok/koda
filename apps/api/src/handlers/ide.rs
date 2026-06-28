@@ -327,3 +327,60 @@ pub async fn post_workspace_ai_chat(
 
     Ok(Sse::new(sse_stream).into_response())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn secret_file_detection() {
+        assert!(is_secret_file(".env"));
+        assert!(is_secret_file(".env.local"));
+        assert!(is_secret_file(".env.production"));
+        assert!(is_secret_file("private.key"));
+        assert!(is_secret_file("cert.pem"));
+        assert!(is_secret_file("bundle.p12"));
+        assert!(is_secret_file("store.pfx"));
+        assert!(is_secret_file(".netrc"));
+        assert!(is_secret_file("id_rsa"));
+        assert!(is_secret_file("id_ed25519"));
+        assert!(is_secret_file("api_secret.json"));
+        assert!(is_secret_file("db_password.txt"));
+        assert!(is_secret_file("credentials.json"));
+    }
+
+    #[test]
+    fn non_secret_files_not_filtered() {
+        assert!(!is_secret_file("main.rs"));
+        assert!(!is_secret_file("config.yaml"));
+        assert!(!is_secret_file("README.md"));
+        assert!(!is_secret_file("Cargo.toml"));
+        assert!(!is_secret_file("src/lib.rs"));
+        assert!(!is_secret_file("env_utils.rs")); // contains "env" but not .env
+    }
+
+    #[test]
+    fn pack_detection_from_extension() {
+        let (langs, fw) = detect_packs_from_extension("src/main.rs");
+        assert_eq!(langs, vec!["rust"]);
+        assert!(fw.contains(&"axum".to_string()));
+
+        let (langs, fw) = detect_packs_from_extension("app/page.tsx");
+        assert_eq!(langs, vec!["typescript"]);
+        assert!(fw.contains(&"react".to_string()));
+        assert!(fw.contains(&"nextjs".to_string()));
+
+        let (langs, _fw) = detect_packs_from_extension("main.py");
+        assert_eq!(langs, vec!["python"]);
+
+        let (langs, _fw) = detect_packs_from_extension("main.go");
+        assert_eq!(langs, vec!["go"]);
+
+        let (langs, _fw) = detect_packs_from_extension("schema.sql");
+        assert_eq!(langs, vec!["sql"]);
+
+        let (langs, fw) = detect_packs_from_extension("README.md");
+        assert!(langs.is_empty());
+        assert!(fw.is_empty());
+    }
+}

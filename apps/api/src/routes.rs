@@ -8,7 +8,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    handlers::{admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, quota, security_policy, teams, tokens, user_settings, workspace_notes, workspaces},
+    handlers::{admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, quota, security_policy, teams, tokens, user_settings, workspace_notes, workspaces, ws_terminal},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::rate_limit::rate_limit_middleware,
     middleware::request_id::request_id_layer,
@@ -44,6 +44,10 @@ where
         .route("/api/v1/personal/files/*file_path", put(personal::put_personal_file))
         .route("/api/v1/user/settings", get(user_settings::get_user_settings))
         .route("/api/v1/user/settings", put(user_settings::put_user_settings))
+        // WebSocket terminal
+        .route("/api/v1/ws/:workspace_id/terminal", get(ws_terminal::ws_terminal))
+        // SSH info for koda connect CLI
+        .route("/api/v1/workspaces/:uid/ssh", get(workspaces::get_workspace_ssh))
         // MFA
         .route("/api/v1/user/mfa/status", get(mfa::get_mfa_status))
         .route("/api/v1/user/mfa/setup", post(mfa::post_mfa_setup))

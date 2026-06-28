@@ -14,3 +14,4 @@ pub mod tokens;
 pub mod user_settings;
 pub mod workspace_notes;
 pub mod workspaces;
+pub mod ws_terminal;

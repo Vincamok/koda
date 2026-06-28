@@ -365,3 +365,41 @@ pub async fn put_personal_file(
 
     Ok(Json(serde_json::json!({ "data": null })))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn allowed_personal_paths() {
+        assert!(is_allowed_personal_path("ai/instructions.md"));
+        assert!(is_allowed_personal_path("shell/bashrc"));
+        assert!(is_allowed_personal_path("shell/zshrc"));
+        assert!(is_allowed_personal_path("shell/aliases"));
+        assert!(is_allowed_personal_path("git/.gitconfig"));
+        assert!(is_allowed_personal_path("notes/personal.md"));
+    }
+
+    #[test]
+    fn leading_slash_stripped() {
+        assert!(is_allowed_personal_path("/ai/instructions.md"));
+        assert!(is_allowed_personal_path("/shell/bashrc"));
+    }
+
+    #[test]
+    fn path_traversal_rejected() {
+        assert!(!is_allowed_personal_path("../etc/passwd"));
+        assert!(!is_allowed_personal_path("../../etc/shadow"));
+        assert!(!is_allowed_personal_path("shell/../../etc/passwd"));
+        assert!(!is_allowed_personal_path("/root/.ssh/id_rsa"));
+    }
+
+    #[test]
+    fn arbitrary_paths_rejected() {
+        assert!(!is_allowed_personal_path("Cargo.toml"));
+        assert!(!is_allowed_personal_path(".env"));
+        assert!(!is_allowed_personal_path("shell/profile"));  // not in allowlist
+        assert!(!is_allowed_personal_path("ai/"));
+        assert!(!is_allowed_personal_path(""));
+    }
+}

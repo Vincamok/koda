@@ -132,3 +132,64 @@ fn matches_cron_field(expr: &str, val: u32) -> bool {
 
     false
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::datetime;
+
+    #[test]
+    fn wildcard_always_matches() {
+        let t = datetime!(2026-06-28 14:30:00 UTC);
+        assert!(should_run_now("* * * * *", t));
+    }
+
+    #[test]
+    fn specific_minute_and_hour() {
+        let t = datetime!(2026-06-28 14:30:00 UTC);
+        assert!(should_run_now("30 14 * * *", t));
+        assert!(!should_run_now("31 14 * * *", t));
+        assert!(!should_run_now("30 15 * * *", t));
+    }
+
+    #[test]
+    fn step_expression() {
+        let t = datetime!(2026-06-28 14:30:00 UTC);
+        assert!(should_run_now("*/5 * * * *", t));  // 30 % 5 == 0
+        assert!(should_run_now("*/2 * * * *", t));  // 30 % 2 == 0
+        assert!(!should_run_now("*/7 * * * *", t)); // 30 % 7 != 0
+    }
+
+    #[test]
+    fn range_expression() {
+        let t = datetime!(2026-06-28 14:30:00 UTC);
+        assert!(should_run_now("25-35 * * * *", t));
+        assert!(!should_run_now("0-15 * * * *", t));
+    }
+
+    #[test]
+    fn comma_list() {
+        let t = datetime!(2026-06-28 14:30:00 UTC);
+        assert!(should_run_now("0,15,30,45 * * * *", t));
+        assert!(!should_run_now("0,15,45 * * * *", t));
+    }
+
+    #[test]
+    fn invalid_expr_returns_false() {
+        let t = datetime!(2026-06-28 14:30:00 UTC);
+        assert!(!should_run_now("", t));
+        assert!(!should_run_now("* * * *", t)); // only 4 fields
+        assert!(!should_run_now("* * * * * *", t)); // 6 fields
+    }
+
+    #[test]
+    fn matches_field_basics() {
+        assert!(matches_cron_field("*", 42));
+        assert!(matches_cron_field("42", 42));
+        assert!(!matches_cron_field("43", 42));
+        assert!(matches_cron_field("*/6", 12));
+        assert!(!matches_cron_field("*/6", 13));
+        assert!(matches_cron_field("10-20", 15));
+        assert!(!matches_cron_field("10-20", 9));
+    }
+}
