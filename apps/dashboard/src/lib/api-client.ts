@@ -14,6 +14,10 @@ import type {
   SecurityReport,
   VulnerabilityFinding,
   AuditEvent,
+  SecurityPolicy,
+  AiProviderConfig,
+  OrgQuotaUsage,
+  KodaInstance,
 } from '@koda/shared-types'
 
 const API_BASE_URL =
@@ -239,6 +243,66 @@ export function listDiffReviews(orgId: string, workspaceId: string): Promise<Dif
 export function getAuditLogs(orgId: string, cursor?: string): Promise<CursorPage<AuditEvent>> {
   const params = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
   return get<CursorPage<AuditEvent>>(`/api/v1/organizations/${orgId}/audit-logs${params}`)
+}
+
+// ── Security Policy ───────────────────────────────────────────────────────────
+
+export function getSecurityPolicy(orgId: string): Promise<SecurityPolicy> {
+  return get<SecurityPolicy>(`/api/v1/organizations/${orgId}/security-policy`)
+}
+
+export function updateSecurityPolicy(
+  orgId: string,
+  data: Partial<Pick<SecurityPolicy, 'min_severity_to_block' | 'image_scan_trigger' | 'required_scans'>>,
+): Promise<void> {
+  return patch<void>(`/api/v1/organizations/${orgId}/security-policy`, data)
+}
+
+// ── Organization Quota ────────────────────────────────────────────────────────
+
+export function getOrgQuota(orgId: string): Promise<OrgQuotaUsage> {
+  return get<OrgQuotaUsage>(`/api/v1/organizations/${orgId}/quota`)
+}
+
+// ── AI Provider Config ────────────────────────────────────────────────────────
+
+export function getOrgAiConfig(orgId: string): Promise<AiProviderConfig> {
+  return get<AiProviderConfig>(`/api/v1/organizations/${orgId}/ai-config`)
+}
+
+export function updateOrgAiConfig(
+  orgId: string,
+  data: Partial<AiProviderConfig>,
+): Promise<void> {
+  return patch<void>(`/api/v1/organizations/${orgId}/ai-config`, data)
+}
+
+// ── Admin: Instances ──────────────────────────────────────────────────────────
+
+export function adminListInstances(): Promise<KodaInstance[]> {
+  return get<KodaInstance[]>('/api/v1/admin/instances')
+}
+
+export function adminCreateInstance(data: {
+  name: string
+  base_url: string
+  region?: string
+}): Promise<KodaInstance> {
+  return post<KodaInstance>('/api/v1/admin/instances', data)
+}
+
+export function adminDeleteInstance(instanceId: string): Promise<void> {
+  return del<void>(`/api/v1/admin/instances/${instanceId}`)
+}
+
+// ── Admin: AI Config ──────────────────────────────────────────────────────────
+
+export function adminGetAiConfig(): Promise<AiProviderConfig> {
+  return get<AiProviderConfig>('/api/v1/admin/ai-config')
+}
+
+export function adminUpdateAiConfig(data: Partial<AiProviderConfig>): Promise<void> {
+  return patch<void>('/api/v1/admin/ai-config', data)
 }
 
 // ── User settings ─────────────────────────────────────────────────────────────

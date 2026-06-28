@@ -8,7 +8,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    handlers::{admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, teams, tokens, user_settings, workspace_notes, workspaces},
+    handlers::{admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, quota, security_policy, teams, tokens, user_settings, workspace_notes, workspaces},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::rate_limit::rate_limit_middleware,
     middleware::request_id::request_id_layer,
@@ -38,6 +38,10 @@ where
         .route("/api/v1/personal/snippets", post(personal::post_personal_snippet))
         .route("/api/v1/personal/snippets/:snippet_id", patch(personal::patch_personal_snippet))
         .route("/api/v1/personal/snippets/:snippet_id", delete(personal::delete_personal_snippet))
+        // Personal files (.personal/ directory)
+        .route("/api/v1/personal/files", get(personal::get_personal_files))
+        .route("/api/v1/personal/files/*file_path", get(personal::get_personal_file))
+        .route("/api/v1/personal/files/*file_path", put(personal::put_personal_file))
         .route("/api/v1/user/settings", get(user_settings::get_user_settings))
         .route("/api/v1/user/settings", put(user_settings::put_user_settings))
         // MFA
@@ -114,17 +118,35 @@ where
         // Workspace notes
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/notes", get(workspace_notes::get_workspace_note))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/notes", put(workspace_notes::put_workspace_note))
+        // Organization quota
+        .route("/api/v1/organizations/:org_id/quota", get(quota::get_org_quota))
+        // Organization AI config
+        .route("/api/v1/organizations/:org_id/ai-config", get(quota::get_org_ai_config))
+        .route("/api/v1/organizations/:org_id/ai-config", patch(quota::patch_org_ai_config))
+        // Security policy
+        .route("/api/v1/organizations/:org_id/security-policy", get(security_policy::get_security_policy))
+        .route("/api/v1/organizations/:org_id/security-policy", patch(security_policy::patch_security_policy))
         .layer(middleware::from_fn_with_state(state.clone(), with_org_context))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
     let admin_routes = Router::new()
         .route("/api/v1/admin/health", get(|| async { axum::Json(serde_json::json!({ "status": "ok" })) }))
         .route("/api/v1/admin/stats", get(admin::admin_infra_stats))
+        .route("/api/v1/admin/metrics", get(admin::admin_dashboard_metrics))
         .route("/api/v1/admin/organizations", get(admin::admin_list_orgs))
         .route("/api/v1/admin/organizations/:org_id/toggle", post(admin::admin_toggle_org))
+        .route("/api/v1/admin/organizations/:org_id/quota", patch(admin::admin_update_quota))
+        .route("/api/v1/admin/organizations/:org_id/instance-affinity", get(admin::admin_get_org_affinity))
+        .route("/api/v1/admin/organizations/:org_id/instance-affinity", put(admin::admin_set_org_affinity))
         .route("/api/v1/admin/users", get(admin::admin_list_users))
         .route("/api/v1/admin/users/:user_id/impersonate", post(admin::admin_impersonate))
+        .route("/api/v1/admin/users/:user_id/reset-mfa", post(admin::admin_reset_mfa))
         .route("/api/v1/admin/audit-logs", get(admin::admin_audit_logs))
+        .route("/api/v1/admin/ai-config", get(admin::admin_get_ai_config))
+        .route("/api/v1/admin/ai-config", patch(admin::admin_patch_ai_config))
+        .route("/api/v1/admin/instances", get(admin::admin_list_instances))
+        .route("/api/v1/admin/instances", post(admin::admin_create_instance))
+        .route("/api/v1/admin/instances/:instance_id", delete(admin::admin_delete_instance))
         .layer(middleware::from_fn(require_super_admin))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

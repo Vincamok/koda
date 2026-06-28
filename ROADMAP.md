@@ -67,8 +67,8 @@ Créer un workspace, cloner un repo, lancer un container, accéder via URL.
 - [x] Modèles DB : `Workspace`, `WorkspaceGitConfig`, `WorkspaceVolume`, `Template`
 - [x] API : `POST /api/v1/workspaces`, `GET /api/v1/workspaces/:uid`
 - [x] UID immuable généré à la création (UUID v4)
-- [ ] Clone Git asynchrone via worker Rust + Redis Streams (`jobs:workspace`)
-- [ ] Machine d'états clone : `pending → cloning → ready | failed`
+- [x] Clone Git asynchrone via worker Rust + Redis Streams (`jobs:workspace`)
+- [x] Machine d'états clone : `pending → cloning → ready | failed`
 - [x] Lancement container via bollard + docker-socket-proxy
 - [x] Resource limits obligatoires dans HostConfig (cpu_period, cpu_quota, memory, pids_limit)
 - [x] Réseaux Docker multi par workspace : `koda-ws-<uid>-internal` + `koda-ws-<uid>-services`
@@ -111,7 +111,7 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [x] Volume Docker `koda-personal-<user-uid>` monté en read-only dans chaque workspace
   - [ ] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
   - [ ] Git config personnelle (`~/.personal/git/.gitconfig`) montée dans container
-  - [ ] Panel "Mon espace" dans web-client : édition Monaco de tous les fichiers `.personal/`
+  - [x] Panel "Mon espace" dans web-client : édition Monaco de tous les fichiers `.personal/`
   - [x] Fusion `ai/instructions.md` personnel + workspace `KODA.md` dans le contexte LLM (6 couches)
   - [x] `UserMCPBinding` : connecteurs MCP personnels
   - [x] Snippets personnels disponibles dans Monaco
@@ -120,7 +120,7 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
 - [x] Routes TCP sozu : SSH (`2200-2999`), PostgreSQL (`5400-5499`)
 - [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
 - [x] Sélecteur de thèmes dans le dashboard et le web-client
-- [ ] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
+- [x] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
 - [x] **i18n complète** : traductions exhaustives FR/EN/ES/DE sur les 3 apps
 - [x] Injection langue `UserSettings.locale` en couche 6 du contexte LLM (`AiContextBuilder`)
 - [x] MCP connecteurs — intégration dans le web-client :
@@ -129,7 +129,7 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [x] Connecteurs built-in : jira, notion, postgres, slack, http (+ github à compléter)
   - [x] API : `GET /api/v1/mcp/connectors`, `POST|DELETE /api/v1/workspaces/:uid/mcp/bindings`
   - [x] Panel MCP dans web-client (activation, config, statut par connecteur)
-  - [ ] Injection tool definitions MCP dans le prompt LLM lors du chat IA
+  - [x] Injection tool definitions MCP dans le prompt LLM lors du chat IA
   - [x] SecretRef : résolution credentials au moment du tool call, jamais loggé
   - [x] `@koda/mcp-connectors` : registre TypeScript + connecteurs built-in
 - [x] **Pré-prompts LLM-agnostiques** :
@@ -190,12 +190,12 @@ Pipelines de vérification automatisés, webhooks, triggers.
 Sécurité renforcée, observabilité, tests E2E, audit.
 
 ### Livrables
-- [ ] RBAC complet : Teams + rôles (lead | developer | reviewer | viewer) + WorkspaceShare
-- [ ] `SecurityPolicy` org-level : audit des scans requis + seuil de blocage configurable
+- [x] RBAC complet : Teams + rôles (lead | developer | reviewer | viewer) + WorkspaceShare
+- [x] `SecurityPolicy` org-level : audit des scans requis + seuil de blocage configurable
 - [x] `AuditEvent` : toutes les actions critiques tracées (`audit.rs` + `admin_audit_logs`)
 - [x] RLS PostgreSQL sur tables critiques (`202600010035_enable_rls.sql`)
 - [x] TOTP MFA (totp-rs) + tokens M2M avec rotation (RFC 7009)
-- [ ] `OrganizationQuota` : limites par org (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`)
+- [x] `OrganizationQuota` : limites par org (`max_workspaces`, `max_cpu_cores`, `max_ram_gb`, `max_storage_gb`, `max_members`)
 - [ ] OpenTelemetry export OTLP + intégration Sentry
 - [x] Rate limiting par IP + par utilisateur (tower middleware — `rate_limit.rs`)
 - [x] Tests E2E Playwright : création workspace, revue diff, clôture
@@ -206,14 +206,14 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 - [x] Documentation OpenAPI générée et publiée (`/swagger-ui` + `/api-docs/openapi.json`)
 - [x] Snapshot workspace (docker pause + copie volume)
 - [x] **Panel admin complet (`apps/admin/`)** :
-  - [ ] Dashboard global : métriques temps réel, santé des services
+  - [x] Dashboard global : métriques temps réel, santé des services
   - [x] Gestion organisations : CRUD, quotas, suspension (`admin_toggle_org`)
   - [x] Gestion utilisateurs : global, impersonation, reset MFA
-  - [ ] IA & pré-prompts : provider global, system prompt par org, templates de niveaux
+  - [x] IA & pré-prompts : provider global, system prompt par org, templates de niveaux
   - [x] Logs & audit : vue unifiée `AuditEvent` + jobs Redis + export CSV/JSON
   - [x] Infrastructure : containers actifs, routes sozu, DB, GC manuel (`admin_infra_stats`)
   - [x] Endpoint `GET /api/v1/admin/health` (authentifié M2M) pour multi-instances
-- [ ] `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances
+- [x] `KodaInstance` + `OrgInstanceAffinity` : fondations multi-instances
 
 ### Critères de validation
 - Parcours E2E complets verts

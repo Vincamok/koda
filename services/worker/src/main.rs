@@ -1,6 +1,7 @@
 mod config;
 mod cron_scheduler;
 mod garbage_collector;
+mod git_cloner;
 mod pipeline_runner;
 mod plugin_prober;
 
@@ -13,6 +14,7 @@ use crate::{
     config::WorkerConfig,
     cron_scheduler::CronScheduler,
     garbage_collector::GarbageCollector,
+    git_cloner::GitCloner,
     pipeline_runner::PipelineRunner,
     plugin_prober::PluginProber,
 };
@@ -63,6 +65,16 @@ async fn main() -> anyhow::Result<()> {
         anthropic_api_key: config.anthropic_api_key.clone(),
     };
 
+    let redis2 = redis_client.get_multiplexed_async_connection().await?;
+
+    let mut cloner = GitCloner {
+        pool: pool.clone(),
+        redis: redis2,
+        group: config.consumer_group.clone(),
+        consumer: format!("{}-git", config.consumer_name),
+        workspace_root: config.workspace_root.clone().unwrap_or_else(|| "/data/workspaces".into()),
+    };
+
     let cron = CronScheduler {
         pool: pool.clone(),
     };
@@ -75,6 +87,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::try_join!(
         prober.run(),
         runner.run(),
+        cloner.run(),
         cron.run(),
         gc.run(),
     )?;

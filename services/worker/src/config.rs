@@ -11,6 +11,7 @@ pub struct WorkerConfig {
     pub http_timeout_seconds: u64,
     pub docker_host: String,
     pub anthropic_api_key: Option<String>,
+    pub workspace_root: Option<String>,
 }
 
 impl WorkerConfig {

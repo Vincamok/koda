@@ -227,3 +227,141 @@ pub async fn delete_personal_snippet(
 
     Ok(Json(serde_json::json!({ "data": null })))
 }
+
+// ── Personal files (ai/instructions.md, shell configs, etc.) ─────────────────
+
+const ALLOWED_PERSONAL_FILES: &[&str] = &[
+    "ai/instructions.md",
+    "shell/bashrc",
+    "shell/zshrc",
+    "shell/aliases",
+    "git/.gitconfig",
+    "notes/personal.md",
+];
+
+fn is_allowed_personal_path(path: &str) -> bool {
+    let clean = path.trim_start_matches('/');
+    ALLOWED_PERSONAL_FILES.iter().any(|&p| clean == p)
+}
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct PersonalFileResponse {
+    pub path: String,
+    pub content: String,
+}
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct UpdatePersonalFileRequest {
+    pub content: String,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/personal/files",
+    responses(
+        (status = 200, description = "List of personal files with content"),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
+pub async fn get_personal_files(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+) -> Result<impl IntoResponse, AppError> {
+    let rows = sqlx::query!(
+        "SELECT path, content FROM personal_files WHERE user_id = $1 ORDER BY path",
+        auth.id,
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    let files: Vec<PersonalFileResponse> = rows
+        .into_iter()
+        .map(|r| PersonalFileResponse { path: r.path, content: r.content })
+        .collect();
+
+    // Fill in missing files with empty content
+    let mut all_files: Vec<PersonalFileResponse> = ALLOWED_PERSONAL_FILES
+        .iter()
+        .map(|&p| {
+            files
+                .iter()
+                .find(|f| f.path == p)
+                .cloned()
+                .unwrap_or_else(|| PersonalFileResponse {
+                    path: p.to_string(),
+                    content: String::new(),
+                })
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "data": all_files })))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/personal/files/{file_path}",
+    params(("file_path" = String, Path, description = "File path within .personal/")),
+    responses(
+        (status = 200, description = "File content"),
+        (status = 403, description = "Path not allowed"),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
+pub async fn get_personal_file(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(file_path): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    if !is_allowed_personal_path(&file_path) {
+        return Err(AppError::Forbidden("path not allowed".into()));
+    }
+
+    let row = sqlx::query!(
+        "SELECT content FROM personal_files WHERE user_id = $1 AND path = $2",
+        auth.id,
+        file_path,
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+
+    let content = row.map(|r| r.content).unwrap_or_default();
+    Ok(Json(serde_json::json!({ "data": { "path": file_path, "content": content } })))
+}
+
+#[utoipa::path(
+    put,
+    path = "/api/v1/personal/files/{file_path}",
+    params(("file_path" = String, Path, description = "File path within .personal/")),
+    request_body = UpdatePersonalFileRequest,
+    responses(
+        (status = 200, description = "File saved"),
+        (status = 403, description = "Path not allowed"),
+    ),
+    tag = "personal",
+    security(("session" = []))
+)]
+pub async fn put_personal_file(
+    State(state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Path(file_path): Path<String>,
+    Json(body): Json<UpdatePersonalFileRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    if !is_allowed_personal_path(&file_path) {
+        return Err(AppError::Forbidden("path not allowed".into()));
+    }
+
+    sqlx::query!(
+        r#"INSERT INTO personal_files (user_id, path, content)
+           VALUES ($1, $2, $3)
+           ON CONFLICT (user_id, path) DO UPDATE SET content = $3, updated_at = NOW()"#,
+        auth.id,
+        file_path,
+        body.content,
+    )
+    .execute(&state.pool)
+    .await?;
+
+    Ok(Json(serde_json::json!({ "data": null })))
+}

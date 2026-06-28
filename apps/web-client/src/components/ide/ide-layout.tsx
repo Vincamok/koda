@@ -3,13 +3,14 @@
 import * as React from 'react'
 import { PanelGroup, Panel, PanelResizeHandle } from 'react-resizable-panels'
 import { useTranslations } from 'next-intl'
-import { Bot, GitBranch, Plug, FileCode2, Monitor } from 'lucide-react'
+import { Bot, GitBranch, Plug, FileCode2, Monitor, User } from 'lucide-react'
 import { CodeEditor } from './code-editor'
 import { Terminal } from './terminal'
 import { AiChat } from './ai-chat'
 import { FileTree } from './file-tree'
 import { GitPanel } from './git-panel'
 import { McpPanel } from './mcp-panel'
+import { PersonalPanel } from './personal-panel'
 import { EditorTopBar } from './editor-topbar'
 
 interface IDELayoutProps {
@@ -17,7 +18,7 @@ interface IDELayoutProps {
   locale: string
 }
 
-type RightTab = 'ai' | 'git' | 'mcp'
+type RightTab = 'ai' | 'git' | 'mcp' | 'personal'
 type MobileView = 'editor' | 'files' | 'ai' | 'git'
 
 function useIsMobile(): boolean {
@@ -64,6 +65,7 @@ export function IDELayout({ workspaceId, locale }: IDELayoutProps) {
             { key: 'ai', icon: <Bot className="h-3.5 w-3.5" />, label: t('ai_chat') },
             { key: 'git', icon: <GitBranch className="h-3.5 w-3.5" />, label: t('git_panel') },
             { key: 'mcp', icon: <Plug className="h-3.5 w-3.5" />, label: t('mcp_panel') },
+            { key: 'personal', icon: <User className="h-3.5 w-3.5" />, label: t('personal_panel') },
           ] as Array<{ key: RightTab; icon: React.ReactNode; label: string }>
         ).map((tab) => (
           <button
@@ -87,6 +89,7 @@ export function IDELayout({ workspaceId, locale }: IDELayoutProps) {
         )}
         {rightTab === 'git' && <GitPanel workspaceId={workspaceId} />}
         {rightTab === 'mcp' && <McpPanel workspaceId={workspaceId} />}
+        {rightTab === 'personal' && <PersonalPanel />}
       </div>
     </div>
   )

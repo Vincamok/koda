@@ -9,6 +9,31 @@
 
 ---
 
+## [0.4.3] — 2026-06-28 · Phase 4 — Sécurité, observabilité, instances & espace personnel
+
+### Added
+- **SecurityPolicy API** : `GET|PATCH /api/v1/organizations/:org_id/security-policy` — configuration du seuil de blocage, trigger image scan, scans requis (upsert automatique à la première lecture)
+- **OrganizationQuota** : `GET /api/v1/organizations/:org_id/quota` — usage temps réel (workspaces, membres) vs limites ; admin `PATCH /api/v1/admin/organizations/:org_id/quota` ; enforcement quota membres dans `post_org_member`
+- **AI Provider Config** : migration `ai_provider_configs` (provider, 5 niveaux de modèle, system_prompt, temperature) ; `GET|PATCH /api/v1/organizations/:org_id/ai-config` ; admin `GET|PATCH /api/v1/admin/ai-config` (config globale par défaut)
+- **KodaInstance & OrgInstanceAffinity API** : `GET|POST /api/v1/admin/instances`, `DELETE .../instances/:id`, `GET|PUT /api/v1/admin/organizations/:org_id/instance-affinity`
+- **Admin dashboard métriques** : `GET /api/v1/admin/metrics` — détail orgs (total/active/suspended), workspaces (par statut), utilisateurs (avec MFA, super_admin), pipelines (runs 24h, failed 24h), sécurité (findings ouverts par sévérité)
+- **Admin MFA reset** : `POST /api/v1/admin/users/:user_id/reset-mfa`
+- **Worker git clone** : `git_cloner.rs` — consumer Redis stream `koda:jobs:git`, clone shallow via git2 (SSH key + HTTPS), machine d'états `cloning → ready | failed`, lecture `devcontainer.json` post-clone avec auto-binding des plugins détectés (jupyter, ssh, code-server)
+- **MCP tool injection LLM** : les définitions de tools des connecteurs MCP actifs sont injectées dans le prompt IA lors du chat workspace
+- **Personal space panel** (`PersonalPanel` dans web-client) : liste et édition Monaco de 6 fichiers `.personal/` (ai/instructions.md, shell configs, .gitconfig, notes) ; sauvegarde `Ctrl+S`
+- **Personal files API** : `GET /api/v1/personal/files`, `GET|PUT /api/v1/personal/files/*path` — seulement les chemins autorisés (allowlist)
+- Migration `202600010042_ai_provider_configs_create.sql` : config IA par org + config globale (insert par défaut)
+- Migration `202600010043_personal_files_create.sql` : table `personal_files` (user_id, path, content, unique constraint)
+- Types TypeScript : `SecurityPolicy`, `AiProviderConfig`, `OrgQuotaUsage`, `OrgInstanceAffinity`, `PersonalFile`
+- Fonctions API client dashboard : `getSecurityPolicy`, `updateSecurityPolicy`, `getOrgQuota`, `getOrgAiConfig`, `updateOrgAiConfig`, `adminListInstances`, `adminCreateInstance`, `adminDeleteInstance`, `adminGetAiConfig`, `adminUpdateAiConfig`
+- i18n : clé `personal_panel` dans les 4 langues (FR/EN/ES/DE)
+
+### Changed
+- `post_org_member` : enforcement du quota `max_members` avant invitation
+- IDE layout : ajout du 4ème onglet « Mon espace » (`personal`) dans le panneau droit
+
+---
+
 ## [0.4.2] — 2026-06-28 · Phase 3 — Pipeline IA review de diff
 
 ### Added

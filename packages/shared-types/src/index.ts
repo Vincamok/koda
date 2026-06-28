@@ -328,3 +328,58 @@ export interface KodaInstance {
   last_seen_at: string | null
   created_at: string
 }
+
+export interface OrgInstanceAffinity {
+  organization_id: string
+  instance_id: string
+  instance_name: string
+  instance_base_url: string
+}
+
+// ── Security Policy ───────────────────────────────────────────────────────────
+
+export interface SecurityPolicy {
+  id: string
+  organization_id: string
+  min_severity_to_block: 'critical' | 'high' | 'medium' | 'low' | 'none'
+  image_scan_trigger: 'OnBuild' | 'OnLaunch' | 'Both' | 'Disabled'
+  required_scans: string[]
+  created_at: string
+  updated_at: string
+}
+
+// ── AI Provider Config ────────────────────────────────────────────────────────
+
+export type AiProvider = 'anthropic' | 'openai' | 'mistral' | 'local'
+
+export interface AiProviderConfig {
+  provider: AiProvider
+  model_nano: string
+  model_quick: string
+  model_standard: string
+  model_deep: string
+  model_agent: string
+  system_prompt: string | null
+  max_tokens: number
+  temperature: number
+}
+
+// ── Quota with usage ──────────────────────────────────────────────────────────
+
+export interface OrgQuotaUsage {
+  organization_id: string
+  max_workspaces: number
+  max_cpu_cores: number
+  max_ram_gb: number
+  max_storage_gb: number
+  max_members: number
+  used_workspaces: number
+  used_members: number
+}
+
+// ── Personal files ────────────────────────────────────────────────────────────
+
+export interface PersonalFile {
+  path: string
+  content: string
+}

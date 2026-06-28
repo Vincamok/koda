@@ -221,6 +221,25 @@ pub async fn post_org_member(
         return Err(AppError::Forbidden("insufficient role".into()));
     }
 
+    // Enforce member quota
+    let quota = sqlx::query!(
+        "SELECT max_members FROM organization_quotas WHERE organization_id = $1",
+        org_id,
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+    let max_members = quota.map(|q| q.max_members).unwrap_or(50);
+    let current_members: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM memberships WHERE organization_id = $1",
+        org_id,
+    )
+    .fetch_one(&state.pool)
+    .await?
+    .unwrap_or(0);
+    if current_members >= max_members as i64 {
+        return Err(AppError::QuotaExceeded("member limit reached".into()));
+    }
+
     let target_user = sqlx::query_as!(
         crate::models::user::User,
         "SELECT * FROM users WHERE email = $1",

@@ -7,6 +7,8 @@ pub mod mfa;
 pub mod orgs;
 pub mod personal;
 pub mod pipelines;
+pub mod quota;
+pub mod security_policy;
 pub mod teams;
 pub mod tokens;
 pub mod user_settings;

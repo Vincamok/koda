@@ -207,6 +207,48 @@ pub async fn post_workspace_ai_chat(
     // Fetch org-level KODA.md if it exists (placeholder)
     let koda_md: Option<String> = None;
 
+    // Fetch active MCP bindings + their tool definitions for this workspace
+    let mcp_tools_context: Option<String> = {
+        let bindings = sqlx::query!(
+            r#"SELECT cd.name AS connector_name, cd.tools AS connector_tools
+               FROM workspace_mcp_bindings wb
+               JOIN mcp_connector_definitions cd ON cd.id = wb.connector_definition_id
+               WHERE wb.workspace_id = $1 AND wb.enabled = TRUE"#,
+            workspace_id,
+        )
+        .fetch_all(&state.pool)
+        .await
+        .unwrap_or_default();
+
+        if bindings.is_empty() {
+            None
+        } else {
+            let tools_doc = bindings
+                .into_iter()
+                .filter_map(|b| {
+                    let tools = b.connector_tools?;
+                    if tools.as_array().map(|a| a.is_empty()).unwrap_or(true) {
+                        return None;
+                    }
+                    Some(format!(
+                        "## MCP Connector: {}\nAvailable tools:\n```json\n{}\n```",
+                        b.connector_name,
+                        serde_json::to_string_pretty(&tools).unwrap_or_default()
+                    ))
+                })
+                .collect::<Vec<_>>()
+                .join("\n\n");
+
+            if tools_doc.is_empty() {
+                None
+            } else {
+                Some(format!(
+                    "You have access to the following external tool connectors via MCP:\n\n{tools_doc}\n\nWhen the user asks to use a tool, describe which connector and tool you would invoke."
+                ))
+            }
+        }
+    };
+
     // Secret filter — never forward sensitive file contents to LLM
     let safe_context = body.context.as_ref().and_then(|ctx| {
         match (&ctx.file_path, &ctx.file_content) {
@@ -243,6 +285,10 @@ pub async fn post_workspace_ai_chat(
 
     if let Some(km) = koda_md {
         builder = builder.koda_md(&km);
+    }
+
+    if let Some(mcp_ctx) = mcp_tools_context {
+        builder = builder.personal_instructions(&mcp_ctx);
     }
 
     // Assemble user message with (safe) file context
