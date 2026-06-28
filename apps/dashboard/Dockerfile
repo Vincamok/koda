@@ -11,6 +11,7 @@ COPY apps/dashboard/package.json ./apps/dashboard/
 RUN npm ci
 
 FROM base AS builder
+ENV NODE_OPTIONS="--max-old-space-size=512"
 COPY --from=deps /app/node_modules ./node_modules
 COPY packages/shared-types ./packages/shared-types
 COPY packages/i18n ./packages/i18n
