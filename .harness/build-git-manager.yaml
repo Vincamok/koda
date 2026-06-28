@@ -24,7 +24,7 @@ spec:
                 echo "==> git-manager"
                 mkdir -p /kaniko/.docker
                 echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-                /kaniko/executor \
+                /kaniko/executor --snapshot-mode=time \
                   --context=dir://. --dockerfile=services/git-manager/Dockerfile \
                   --destination=$REGISTRY_HOST/$IMAGE_BASE/git-manager:latest
                 echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/git-manager:latest"
