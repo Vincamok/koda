@@ -9,6 +9,15 @@
 
 ---
 
+## [1.1.3] — 2026-06-28 · Fix dashboard next duplicate in npm workspace
+
+### Fixed
+- `apps/dashboard/package.json` : `next` + `eslint-config-next` bumped de `14.2.0` → `14.2.5` pour aligner avec `apps/admin` et `apps/web-client`
+- Supprime l'installation locale de `next` dans `apps/dashboard/node_modules/` (conflit de types `NextRequest` entre deux instances de `next` dans le workspace)
+- `package-lock.json` régénéré : `next@14.2.5` dédupliqué à la racine uniquement
+
+---
+
 ## [1.1.2] — 2026-06-28 · SQLx offline cache + compilation fixes
 
 ### Added
