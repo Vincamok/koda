@@ -1,0 +1,259 @@
+# Build et push des images Docker koda via Kaniko.
+# Prérequis : pullrepo_github (sync GitHub → Harness Code).
+# Registry : harness.vincz.fr (Harness Artifact Registry self-hosted)
+#
+# Secrets requis dans Harness :
+#   harness_user       — identifiant Harness (email ou username)
+#   harness_token      — PAT Harness avec scope artifact_registry_write
+#   portainer_token    — API key Portainer (X-API-Key)
+#
+# Variables à adapter :
+#   REGISTRY_HOST      — hostname du registry Docker Harness
+#   IMAGE_BASE         — espace/application dans le registry
+#   PORTAINER_URL      — URL Portainer de l'environnement cible
+#   PORTAINER_STACK_ID — ID du stack Portainer à redéployer
+#   ENDPOINT_ID        — ID de l'endpoint Portainer
+kind: pipeline
+spec:
+  stages:
+    - name: build_and_push
+      type: ci
+      spec:
+        cloneCodebase: true
+        steps:
+
+          # ── API (Rust / Axum) ───────────────────────────────────────────────
+          - name: push_api
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> api"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=apps/api/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/api:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/api:latest"
+
+          # ── Dashboard (Next.js) ─────────────────────────────────────────────
+          - name: push_dashboard
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> dashboard"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=apps/dashboard/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/dashboard:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/dashboard:latest"
+
+          # ── Admin (Next.js) ─────────────────────────────────────────────────
+          - name: push_admin
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> admin"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=apps/admin/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/admin:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/admin:latest"
+
+          # ── Web-client (Next.js IDE) ─────────────────────────────────────────
+          - name: push_web_client
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> web-client"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=apps/web-client/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/web-client:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/web-client:latest"
+
+          # ── Orchestrator (Rust) ─────────────────────────────────────────────
+          - name: push_orchestrator
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> orchestrator"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=services/orchestrator/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/orchestrator:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/orchestrator:latest"
+
+          # ── Worker (Rust) ───────────────────────────────────────────────────
+          - name: push_worker
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> worker"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=services/worker/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/worker:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/worker:latest"
+
+          # ── Git-manager (Rust) ──────────────────────────────────────────────
+          - name: push_git_manager
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> git-manager"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=services/git-manager/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/git-manager:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/git-manager:latest"
+
+          # ── Gateway (Rust / sozu) ───────────────────────────────────────────
+          - name: push_gateway
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> gateway"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=services/gateway/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/gateway:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/gateway:latest"
+
+          # ── MCP-gateway (Rust) ──────────────────────────────────────────────
+          - name: push_mcp_gateway
+            type: run
+            spec:
+              container: gcr.io/kaniko-project/executor:debug
+              shell: Sh
+              envs:
+                REGISTRY_PASSWORD: ${{ secrets.get('harness_token') }}
+                REGISTRY_USER:     ${{ secrets.get('harness_user') }}
+                REGISTRY_HOST:     "harness.vincz.fr"
+                IMAGE_BASE:        "vincent/koda"
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                echo "==> mcp-gateway"
+                mkdir -p /kaniko/.docker
+                echo "{\"auths\":{\"$REGISTRY_HOST\":{\"username\":\"$REGISTRY_USER\",\"password\":\"$REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+                /kaniko/executor \
+                  --context=dir://. --dockerfile=services/mcp-gateway/Dockerfile \
+                  --destination=$REGISTRY_HOST/$IMAGE_BASE/mcp-gateway:latest
+                echo "==> Terminé : $REGISTRY_HOST/$IMAGE_BASE/mcp-gateway:latest"
+
+          # ── Redéploiement Portainer ─────────────────────────────────────────
+          - name: redeploy_portainer
+            type: run
+            spec:
+              container: alpine/curl
+              shell: Sh
+              envs:
+                PORTAINER_URL:      "https://192.168.200.4:9443"
+                PORTAINER_TOKEN:    ${{ secrets.get('portainer_token') }}
+                PORTAINER_STACK_ID: ${{ secrets.get('portainer_stack_id') }}
+                ENDPOINT_ID:        ${{ secrets.get('portainer_endpoint_id') }}
+              script: |-
+                set -eu
+                if [ -d /gitness ]; then cd /gitness; elif [ -d /harness ]; then cd /harness; else echo "ERREUR: ni /gitness ni /harness" >&2; exit 1; fi
+                apk add -q jq
+
+                echo "==> Récupération des env vars du stack ${PORTAINER_STACK_ID}..."
+                STACK_INFO=$(curl -sk -H "X-API-Key: ${PORTAINER_TOKEN}" \
+                  "${PORTAINER_URL}/api/stacks/${PORTAINER_STACK_ID}")
+                ENV_JSON=$(printf '%s' "$STACK_INFO" | jq -c '.Env // []')
+                echo "==> Env: $ENV_JSON"
+
+                echo "==> Construction du payload..."
+                COMPOSE_JSON=$(jq -Rs . < docker-compose.prod.yml)
+                PAYLOAD=$(jq -n \
+                  --argjson content "$COMPOSE_JSON" \
+                  --argjson env "$ENV_JSON" \
+                  '{stackFileContent: $content, env: $env, prune: false, pullImage: true}')
+
+                echo "==> Redéploiement du stack..."
+                RESULT=$(curl -sk -X PUT \
+                  -H "X-API-Key: ${PORTAINER_TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  "${PORTAINER_URL}/api/stacks/${PORTAINER_STACK_ID}?endpointId=${ENDPOINT_ID}" \
+                  -d "$PAYLOAD")
+                echo "==> Résultat: $RESULT"
+                printf '%s' "$RESULT" | jq -e '.Id' > /dev/null && echo "==> SUCCESS" || { echo "==> ERREUR redeploy"; exit 1; }
