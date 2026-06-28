@@ -104,9 +104,9 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [x] File tree + `GET|PUT /api/v1/workspaces/:uid/files/*`
   - [ ] Terminal xterm.js via WebSocket sozu
   - [x] Chat IA sidebar — **5 niveaux de prompt** (nano, quick, standard, deep, agent)
-  - [ ] Filtre secrets avant envoi IA (pas de `.env`, `*.key` dans le contexte)
-  - [ ] Détection du device → mode `full-ide | tablet-ide | mobile-view`
-  - [ ] Git panel (diff, stage, commit, push)
+  - [x] Filtre secrets avant envoi IA (pas de `.env`, `*.key` dans le contexte)
+  - [x] Détection du device → mode `full-ide | tablet-ide | mobile-view`
+  - [x] Git panel (diff, stage, commit, push)
 - [x] **PersonalSpace complet** :
   - [x] Volume Docker `koda-personal-<user-uid>` monté en read-only dans chaque workspace
   - [ ] Shell configs (`~/.personal/shell/`) sourcés dans terminal xterm.js
@@ -115,27 +115,27 @@ Plugin binding, health probe, Web IDE natif, diff viewer.
   - [x] Fusion `ai/instructions.md` personnel + workspace `KODA.md` dans le contexte LLM (6 couches)
   - [x] `UserMCPBinding` : connecteurs MCP personnels
   - [x] Snippets personnels disponibles dans Monaco
-  - [ ] Notes par workspace (`notes/workspace-notes/<uid>.md`)
-- [ ] Diff viewer dans le dashboard (vue Revue, étape 7)
-- [ ] Routes TCP sozu : SSH (`2200-2999`), PostgreSQL (`5400-5499`)
+  - [x] Notes par workspace (`notes/workspace-notes/<uid>.md`)
+- [x] Diff viewer dans le dashboard (vue Revue, étape 7)
+- [x] Routes TCP sozu : SSH (`2200-2999`), PostgreSQL (`5400-5499`)
 - [ ] CLI `koda connect <uid>` (tunnel SSH via sozu TcpFrontend)
 - [x] Sélecteur de thèmes dans le dashboard et le web-client
 - [ ] `devcontainer.json` : lecture et pré-remplissage Template/Plugin
-- [ ] **i18n complète** : traductions exhaustives FR/EN/ES/DE sur les 3 apps
+- [x] **i18n complète** : traductions exhaustives FR/EN/ES/DE sur les 3 apps
 - [x] Injection langue `UserSettings.locale` en couche 6 du contexte LLM (`AiContextBuilder`)
 - [x] MCP connecteurs — intégration dans le web-client :
   - [x] Modèles DB : `MCPConnectorDefinition`, `WorkspaceMCPBinding`
   - [x] `mcp-gateway` : service Rust (Redis Streams consumer, 6 connecteurs built-in)
   - [x] Connecteurs built-in : jira, notion, postgres, slack, http (+ github à compléter)
-  - [ ] API : `GET /api/v1/mcp/connectors`, `POST|DELETE /api/v1/workspaces/:uid/mcp/bindings`
-  - [ ] Panel MCP dans web-client (activation, config, statut par connecteur)
+  - [x] API : `GET /api/v1/mcp/connectors`, `POST|DELETE /api/v1/workspaces/:uid/mcp/bindings`
+  - [x] Panel MCP dans web-client (activation, config, statut par connecteur)
   - [ ] Injection tool definitions MCP dans le prompt LLM lors du chat IA
   - [x] SecretRef : résolution credentials au moment du tool call, jamais loggé
   - [x] `@koda/mcp-connectors` : registre TypeScript + connecteurs built-in
 - [x] **Pré-prompts LLM-agnostiques** :
   - [x] Packs langue built-in (`rust`, `typescript`, `python`, `go`, `sql`) — non supprimables
-  - [ ] Packs framework built-in (`axum`, `react`, `nextjs`, `sqlx`) — non supprimables
-  - [ ] Auto-détection packs depuis manifestes repo (`Cargo.toml`, `package.json`, `next.config.*`…)
+  - [x] Packs framework built-in (`axum`, `react`, `nextjs`, `sqlx`) — non supprimables
+  - [x] Auto-détection packs depuis manifestes repo (`Cargo.toml`, `package.json`, `next.config.*`…)
   - [x] Context builder dans `orchestrator` : assemblage 6 couches par niveau de prompt
   - [x] Support `KODA.md` à la racine du repo (couche 5, LLM-agnostique)
 

@@ -125,5 +125,53 @@
     "no_results": "No results",
     "copied": "Copied!",
     "copy": "Copy"
+  },
+  "ide": {
+    "tab_pipelines": "Pipelines",
+    "tab_webhooks": "Webhooks",
+    "tab_security": "Security",
+    "tab_activity": "Activity",
+    "tab_diff": "Diff",
+    "tab_notes": "Notes",
+    "diff_coming_soon": "Diff viewer — available in Phase 3",
+    "notes_placeholder": "Notes about this workspace...",
+    "notes_save": "Save",
+    "notes_saving": "Saving..."
+  },
+  "mcp": {
+    "title": "MCP Connectors",
+    "no_connectors": "No connectors available",
+    "add": "Add",
+    "remove": "Remove",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "configure": "Configure",
+    "category": "Category",
+    "connector": "Connector"
+  },
+  "git": {
+    "title": "Git repository",
+    "branch": "Branch",
+    "status": "Status",
+    "no_changes": "No changes",
+    "staged": "Staged",
+    "unstaged": "Modified",
+    "stage": "Stage",
+    "unstage": "Unstage",
+    "commit": "Commit",
+    "push": "Push",
+    "commit_message": "Commit message",
+    "clone_failed": "Clone failed"
+  },
+  "personal": {
+    "title": "My personal space",
+    "snippets": "Snippets",
+    "snippet_new": "New snippet",
+    "snippet_name": "Name",
+    "snippet_language": "Language",
+    "snippet_content": "Content",
+    "snippet_save": "Save",
+    "snippet_delete": "Delete",
+    "no_snippets": "No snippets"
   }
 }

@@ -103,6 +103,7 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
     { key: 'pipelines', label: 'Pipelines', icon: <GitBranch className="h-4 w-4" /> },
     { key: 'webhooks', label: 'Webhooks', icon: <Webhook className="h-4 w-4" /> },
     { key: 'security', label: 'Sécurité', icon: <Shield className="h-4 w-4" /> },
+    { key: 'diff', label: 'Diff', icon: <GitBranch className="h-4 w-4" /> },
     { key: 'activity', label: 'Activité', icon: <Activity className="h-4 w-4" /> },
   ]
 
@@ -269,6 +270,18 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Diff tab ───────────────────────────────────────────────────── */}
+        {tab === 'diff' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-koda-text">Diff viewer</h3>
+            <EmptyState
+              icon={<GitBranch className="h-10 w-10 text-koda-text-muted" />}
+              title="Diff viewer"
+              description="La visualisation des diffs sera disponible en Phase 3 (v0.4.0)."
+            />
           </div>
         )}
 

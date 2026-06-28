@@ -125,5 +125,53 @@
     "no_results": "Keine Ergebnisse",
     "copied": "Kopiert!",
     "copy": "Kopieren"
+  },
+  "ide": {
+    "tab_pipelines": "Pipelines",
+    "tab_webhooks": "Webhooks",
+    "tab_security": "Sicherheit",
+    "tab_activity": "Aktivität",
+    "tab_diff": "Diff",
+    "tab_notes": "Notizen",
+    "diff_coming_soon": "Diff-Viewer — verfügbar in Phase 3",
+    "notes_placeholder": "Notizen zu diesem Workspace...",
+    "notes_save": "Speichern",
+    "notes_saving": "Wird gespeichert..."
+  },
+  "mcp": {
+    "title": "MCP-Konnektoren",
+    "no_connectors": "Keine Konnektoren verfügbar",
+    "add": "Hinzufügen",
+    "remove": "Entfernen",
+    "enabled": "Aktiviert",
+    "disabled": "Deaktiviert",
+    "configure": "Konfigurieren",
+    "category": "Kategorie",
+    "connector": "Konnektor"
+  },
+  "git": {
+    "title": "Git-Repository",
+    "branch": "Branch",
+    "status": "Status",
+    "no_changes": "Keine Änderungen",
+    "staged": "Gestagt",
+    "unstaged": "Geändert",
+    "stage": "Stagen",
+    "unstage": "Entstagen",
+    "commit": "Committen",
+    "push": "Pushen",
+    "commit_message": "Commit-Nachricht",
+    "clone_failed": "Klon fehlgeschlagen"
+  },
+  "personal": {
+    "title": "Mein persönlicher Bereich",
+    "snippets": "Snippets",
+    "snippet_new": "Neues Snippet",
+    "snippet_name": "Name",
+    "snippet_language": "Sprache",
+    "snippet_content": "Inhalt",
+    "snippet_save": "Speichern",
+    "snippet_delete": "Löschen",
+    "no_snippets": "Keine Snippets"
   }
 }

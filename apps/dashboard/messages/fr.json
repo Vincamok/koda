@@ -125,5 +125,53 @@
     "no_results": "Aucun résultat",
     "copied": "Copié !",
     "copy": "Copier"
+  },
+  "ide": {
+    "tab_pipelines": "Pipelines",
+    "tab_webhooks": "Webhooks",
+    "tab_security": "Sécurité",
+    "tab_activity": "Activité",
+    "tab_diff": "Diff",
+    "tab_notes": "Notes",
+    "diff_coming_soon": "Diff viewer — disponible en Phase 3",
+    "notes_placeholder": "Notes sur ce workspace...",
+    "notes_save": "Enregistrer",
+    "notes_saving": "Enregistrement..."
+  },
+  "mcp": {
+    "title": "Connecteurs MCP",
+    "no_connectors": "Aucun connecteur disponible",
+    "add": "Ajouter",
+    "remove": "Supprimer",
+    "enabled": "Activé",
+    "disabled": "Désactivé",
+    "configure": "Configurer",
+    "category": "Catégorie",
+    "connector": "Connecteur"
+  },
+  "git": {
+    "title": "Dépôt Git",
+    "branch": "Branche",
+    "status": "Statut",
+    "no_changes": "Aucune modification",
+    "staged": "Indexés",
+    "unstaged": "Modifiés",
+    "stage": "Indexer",
+    "unstage": "Désindexer",
+    "commit": "Committer",
+    "push": "Pousser",
+    "commit_message": "Message de commit",
+    "clone_failed": "Échec du clonage"
+  },
+  "personal": {
+    "title": "Mon espace personnel",
+    "snippets": "Snippets",
+    "snippet_new": "Nouveau snippet",
+    "snippet_name": "Nom",
+    "snippet_language": "Langage",
+    "snippet_content": "Contenu",
+    "snippet_save": "Enregistrer",
+    "snippet_delete": "Supprimer",
+    "no_snippets": "Aucun snippet"
   }
 }

@@ -125,5 +125,53 @@
     "no_results": "Sin resultados",
     "copied": "¡Copiado!",
     "copy": "Copiar"
+  },
+  "ide": {
+    "tab_pipelines": "Pipelines",
+    "tab_webhooks": "Webhooks",
+    "tab_security": "Seguridad",
+    "tab_activity": "Actividad",
+    "tab_diff": "Diff",
+    "tab_notes": "Notas",
+    "diff_coming_soon": "Visor de diff — disponible en Fase 3",
+    "notes_placeholder": "Notas sobre este workspace...",
+    "notes_save": "Guardar",
+    "notes_saving": "Guardando..."
+  },
+  "mcp": {
+    "title": "Conectores MCP",
+    "no_connectors": "No hay conectores disponibles",
+    "add": "Añadir",
+    "remove": "Eliminar",
+    "enabled": "Activado",
+    "disabled": "Desactivado",
+    "configure": "Configurar",
+    "category": "Categoría",
+    "connector": "Conector"
+  },
+  "git": {
+    "title": "Repositorio Git",
+    "branch": "Rama",
+    "status": "Estado",
+    "no_changes": "Sin cambios",
+    "staged": "Preparados",
+    "unstaged": "Modificados",
+    "stage": "Preparar",
+    "unstage": "Deshacer preparación",
+    "commit": "Commit",
+    "push": "Push",
+    "commit_message": "Mensaje de commit",
+    "clone_failed": "Error al clonar"
+  },
+  "personal": {
+    "title": "Mi espacio personal",
+    "snippets": "Fragmentos",
+    "snippet_new": "Nuevo fragmento",
+    "snippet_name": "Nombre",
+    "snippet_language": "Lenguaje",
+    "snippet_content": "Contenido",
+    "snippet_save": "Guardar",
+    "snippet_delete": "Eliminar",
+    "no_snippets": "Sin fragmentos"
   }
 }

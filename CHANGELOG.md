@@ -8,9 +8,21 @@
 ## [Unreleased]
 
 ### Added
-- OpenAPI 3.1 / Swagger UI : `utoipa` v4 + `utoipa-swagger-ui` v7 montés sur `/swagger-ui` et `/api-docs/openapi.json` — 58 endpoints documentés, sécurité cookie session, 13 tags
+- OpenAPI 3.1 / Swagger UI : `utoipa` v4 + `utoipa-swagger-ui` v7 montés sur `/swagger-ui` et `/api-docs/openapi.json` — endpoints documentés, sécurité cookie session, 15 tags
 - `rate_limit_middleware` branché en layer global : 300 req/min par IP, 600 req/min par utilisateur authentifié, Redis sliding window INCR + EXPIRE
 - Tests E2E Playwright : 5 correctifs — répertoire `.auth/` manquant (ENOENT), regex label français `/^nom$/i`, mode `serial` pour `workspaceId` partagé, `e2e/.gitignore`, middleware rate limiting absent des routes
+- Filtre secrets : `is_secret_file()` côté API et client — `.env`, `*.key`, `*.pem`, clés SSH jamais transmises au LLM
+- Packs framework built-in : `axum`, `react`, `nextjs`, `sqlx` (Markdown, non supprimables) + `builtin_framework_pack()`
+- Auto-détection packs depuis extension du fichier courant (`.rs` → rust+axum+sqlx, `.tsx` → typescript+react+nextjs)
+- API git stubs : `GET .../git/status`, `POST .../git/stage`, `POST .../git/commit`, `POST .../git/push`
+- API MCP workspace : `GET .../mcp/connectors`, `GET|POST .../mcp/bindings`, `DELETE .../mcp/bindings/:id`
+- `workspace_notes` : migration DB + `GET|PUT /api/v1/organizations/:org_id/workspaces/:workspace_id/notes` (par utilisateur, upsert)
+- Routes TCP sozu : `add_workspace_tcp_route` / `remove_workspace_tcp_route` dans orchestrateur et gateway (SSH 2200–2999, Postgres 5400–5499)
+- IDE responsive : détection mobile/tablette/desktop, mode `full-ide | tablet-ide | mobile-view`
+- `GitPanel` : composant web-client avec status git, stage/unstage, commit, push
+- `McpPanel` : composant web-client avec liste connecteurs, activation/désactivation, suppression
+- Dashboard workspace : onglet « Diff » (stub Phase 3)
+- i18n exhaustive : messages `ide`, `mcp`, `git`, `personal` dans les 4 langues (FR/EN/ES/DE) — dashboard + web-client (`packages/i18n/messages/`)
 
 ---
 

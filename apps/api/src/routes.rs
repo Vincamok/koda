@@ -8,7 +8,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    handlers::{admin, auth, ide, mfa, orgs, personal, pipelines, teams, tokens, user_settings, workspaces},
+    handlers::{admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, teams, tokens, user_settings, workspace_notes, workspaces},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::rate_limit::rate_limit_middleware,
     middleware::request_id::request_id_layer,
@@ -96,6 +96,19 @@ where
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", post(workspaces::post_workspace_snapshot))
         // Workspace real-time events (SSE)
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/events", get(workspaces::get_workspace_events))
+        // Git
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/git/status", get(git::get_workspace_git_status))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/git/stage", post(git::post_workspace_git_stage))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/git/commit", post(git::post_workspace_git_commit))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/git/push", post(git::post_workspace_git_push))
+        // MCP
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/connectors", get(mcp::get_mcp_connectors))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/bindings", get(mcp::get_workspace_mcp_bindings))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/bindings", post(mcp::post_workspace_mcp_binding))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/bindings/:binding_id", delete(mcp::delete_workspace_mcp_binding))
+        // Workspace notes
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/notes", get(workspace_notes::get_workspace_note))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/notes", put(workspace_notes::put_workspace_note))
         .layer(middleware::from_fn_with_state(state.clone(), with_org_context))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

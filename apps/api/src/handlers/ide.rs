@@ -9,13 +9,42 @@ use uuid::Uuid;
 
 use crate::{
     ai::{
-        context_builder::AiContextBuilder,
-        provider::{AiContext, ChatMessage},
+        context_builder::{builtin_framework_pack, builtin_lang_pack, AiContextBuilder},
+        provider::ChatMessage,
     },
     error::AppError,
     middleware::auth::{AuthUser, OrgContext},
     AppState,
 };
+
+fn is_secret_file(path: &str) -> bool {
+    let lower = path.to_lowercase();
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    name == ".env"
+        || name.starts_with(".env.")
+        || name.ends_with(".key")
+        || name.ends_with(".pem")
+        || name.ends_with(".p12")
+        || name.ends_with(".pfx")
+        || name == ".netrc"
+        || name == "id_rsa"
+        || name == "id_ed25519"
+        || name.contains("secret")
+        || name.contains("credential")
+        || name.contains("password")
+}
+
+fn detect_packs_from_extension(file_path: &str) -> (Vec<String>, Vec<String>) {
+    let ext = file_path.rsplit('.').next().unwrap_or("").to_lowercase();
+    match ext.as_str() {
+        "rs" => (vec!["rust".into()], vec!["axum".into(), "sqlx".into()]),
+        "ts" | "tsx" => (vec!["typescript".into()], vec!["react".into(), "nextjs".into()]),
+        "py" => (vec!["python".into()], vec![]),
+        "go" => (vec!["go".into()], vec![]),
+        "sql" => (vec!["sql".into()], vec![]),
+        _ => (vec![], vec![]),
+    }
+}
 
 // ── File browser ──────────────────────────────────────────────────────────────
 
@@ -178,23 +207,52 @@ pub async fn post_workspace_ai_chat(
     // Fetch org-level KODA.md if it exists (placeholder)
     let koda_md: Option<String> = None;
 
+    // Secret filter — never forward sensitive file contents to LLM
+    let safe_context = body.context.as_ref().and_then(|ctx| {
+        match (&ctx.file_path, &ctx.file_content) {
+            (Some(path), Some(content)) if !is_secret_file(path) => {
+                Some((path.clone(), content.clone()))
+            }
+            _ => None,
+        }
+    });
+
+    // Auto-detect lang/framework packs from current file extension
+    let (lang_names, fw_names) = safe_context
+        .as_ref()
+        .map(|(path, _)| detect_packs_from_extension(path))
+        .unwrap_or_default();
+
+    let lang_pack_content: Vec<String> = lang_names
+        .iter()
+        .filter_map(|l| builtin_lang_pack(l))
+        .map(str::to_string)
+        .collect();
+
+    let fw_pack_content: Vec<String> = fw_names
+        .iter()
+        .filter_map(|f| builtin_framework_pack(f))
+        .map(str::to_string)
+        .collect();
+
     // Build context using AiContextBuilder
     let mut builder = AiContextBuilder::new()
-        .locale(&locale);
+        .locale(&locale)
+        .lang_packs(lang_pack_content)
+        .framework_packs(fw_pack_content);
 
     if let Some(km) = koda_md {
         builder = builder.koda_md(&km);
     }
 
-    // Add file context as user message prefix
+    // Assemble user message with (safe) file context
     let mut user_message = body.message.clone();
-    if let Some(ctx) = &body.context {
-        if let (Some(path), Some(content)) = (&ctx.file_path, &ctx.file_content) {
-            if !content.is_empty() {
-                user_message = format!(
-                    "Current file: {path}\n```\n{content}\n```\n\n{user_message}",
-                );
-            }
+    if let Some((path, content)) = safe_context {
+        if !content.is_empty() {
+            user_message = format!(
+                "Current file: {path}\n```\n{}\n```\n\n{user_message}",
+                content.chars().take(8000).collect::<String>(),
+            );
         }
     }
 

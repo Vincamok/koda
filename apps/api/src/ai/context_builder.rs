@@ -106,6 +106,17 @@ pub fn builtin_lang_pack(lang: &str) -> Option<&'static str> {
     }
 }
 
+/// Built-in framework pack content.
+pub fn builtin_framework_pack(framework: &str) -> Option<&'static str> {
+    match framework {
+        "axum" => Some(include_str!("../lang_packs/axum.md")),
+        "react" => Some(include_str!("../lang_packs/react.md")),
+        "nextjs" => Some(include_str!("../lang_packs/nextjs.md")),
+        "sqlx" => Some(include_str!("../lang_packs/sqlx.md")),
+        _ => None,
+    }
+}
+
 /// Detects active language packs from manifest file names present in a repo.
 pub fn detect_packs(manifest_files: &[&str], dep_names: &[&str]) -> (Vec<String>, Vec<String>) {
     let mut lang_packs = vec![];

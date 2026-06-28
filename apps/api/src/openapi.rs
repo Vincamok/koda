@@ -4,7 +4,8 @@ use utoipa::{
 };
 
 use crate::handlers::{
-    admin, auth, ide, mfa, orgs, personal, pipelines, teams, tokens, user_settings, workspaces,
+    admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, teams, tokens, user_settings,
+    workspace_notes, workspaces,
 };
 
 struct SecurityAddon;
@@ -68,6 +69,19 @@ impl Modify for SecurityAddon {
         ide::get_workspace_files,
         ide::get_workspace_file_content,
         ide::post_workspace_ai_chat,
+        // Git
+        git::get_workspace_git_status,
+        git::post_workspace_git_stage,
+        git::post_workspace_git_commit,
+        git::post_workspace_git_push,
+        // MCP
+        mcp::get_mcp_connectors,
+        mcp::get_workspace_mcp_bindings,
+        mcp::post_workspace_mcp_binding,
+        mcp::delete_workspace_mcp_binding,
+        // Workspace notes
+        workspace_notes::get_workspace_note,
+        workspace_notes::put_workspace_note,
         // Pipelines
         pipelines::post_pipeline,
         pipelines::get_pipelines,
@@ -134,6 +148,19 @@ impl Modify for SecurityAddon {
             ide::FileNode,
             ide::AiChatRequest,
             ide::AiChatContext,
+            // Git
+            git::GitStatusResponse,
+            git::GitStatusFile,
+            git::GitStageRequest,
+            git::GitCommitRequest,
+            git::GitPushRequest,
+            // MCP
+            mcp::McpConnectorResponse,
+            mcp::McpBindingResponse,
+            mcp::CreateMcpBindingRequest,
+            // Workspace notes
+            workspace_notes::WorkspaceNoteResponse,
+            workspace_notes::UpsertWorkspaceNoteRequest,
             // Pipelines
             pipelines::CreatePipelineRequest,
             pipelines::PipelineResponse,
@@ -169,6 +196,8 @@ impl Modify for SecurityAddon {
         (name = "tokens", description = "Machine-to-machine API tokens"),
         (name = "workspaces", description = "Workspace lifecycle"),
         (name = "ide", description = "IDE — file browser & AI chat"),
+        (name = "git", description = "Git operations — status, stage, commit, push"),
+        (name = "mcp", description = "MCP connector bindings"),
         (name = "pipelines", description = "CI/CD pipelines"),
         (name = "webhooks", description = "Incoming webhook events"),
         (name = "security", description = "Security scan reports"),

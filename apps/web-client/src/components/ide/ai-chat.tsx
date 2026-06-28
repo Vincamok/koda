@@ -11,6 +11,24 @@ interface Message {
   streaming?: boolean
 }
 
+function isSecretFile(path: string): boolean {
+  const name = path.toLowerCase().split('/').pop() ?? ''
+  return (
+    name === '.env' ||
+    name.startsWith('.env.') ||
+    name.endsWith('.key') ||
+    name.endsWith('.pem') ||
+    name.endsWith('.p12') ||
+    name.endsWith('.pfx') ||
+    name === '.netrc' ||
+    name === 'id_rsa' ||
+    name === 'id_ed25519' ||
+    name.includes('secret') ||
+    name.includes('credential') ||
+    name.includes('password')
+  )
+}
+
 interface AiChatProps {
   workspaceId: string
   currentFile: string | null
@@ -66,10 +84,9 @@ export function AiChat({ workspaceId, currentFile, currentContent }: AiChatProps
         signal: controller.signal,
         body: JSON.stringify({
           message: userMessage.content,
-          context: {
-            file_path: currentFile,
-            file_content: currentContent.slice(0, 8000),
-          },
+          context: currentFile && !isSecretFile(currentFile)
+            ? { file_path: currentFile, file_content: currentContent.slice(0, 8000) }
+            : undefined,
         }),
       })
 

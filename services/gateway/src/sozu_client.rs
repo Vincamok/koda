@@ -2,8 +2,9 @@ use anyhow::Context;
 use sozu_command_lib::{
     channel::Channel,
     proto::command::{
-        AddBackend, IpAddress, RemoveBackend, Request, RequestHttpFrontend, Response,
-        ResponseStatus, SocketAddress, ip_address::Inner as IpInner, request::RequestType,
+        AddBackend, AddTcpFrontend, IpAddress, RemoveBackend, RemoveTcpFrontend, Request,
+        RequestHttpFrontend, Response, ResponseStatus, SocketAddress,
+        ip_address::Inner as IpInner, request::RequestType,
     },
 };
 use uuid::Uuid;
@@ -89,6 +90,65 @@ impl SozuClient {
         Ok(())
     }
 
+    /// Register a TCP frontend in sozu for SSH access.
+    /// Exposes container_ip:container_port on exposed_port (range 2200-2999 for SSH).
+    pub fn add_workspace_tcp_route(
+        &mut self,
+        workspace_id: Uuid,
+        container_ip: &str,
+        container_port: u16,
+        exposed_port: u16,
+    ) -> anyhow::Result<()> {
+        let cluster_id = format!("ws-tcp-{workspace_id}");
+        let backend_id = format!("ws-tcp-{workspace_id}-backend");
+
+        let addr = parse_container_addr(container_ip, container_port)?;
+
+        let backend = AddBackend {
+            cluster_id: cluster_id.clone(),
+            backend_id,
+            address: addr,
+            ..Default::default()
+        };
+        self.send(RequestType::AddBackend(backend))?;
+
+        let frontend = AddTcpFrontend {
+            cluster_id,
+            address: make_socket_addr([0, 0, 0, 0], exposed_port),
+            ..Default::default()
+        };
+        self.send(RequestType::AddTcpFrontend(frontend))?;
+
+        Ok(())
+    }
+
+    /// Remove a TCP frontend from sozu.
+    pub fn remove_workspace_tcp_route(
+        &mut self,
+        workspace_id: Uuid,
+        container_ip: &str,
+        container_port: u16,
+        exposed_port: u16,
+    ) -> anyhow::Result<()> {
+        let cluster_id = format!("ws-tcp-{workspace_id}");
+        let backend_id = format!("ws-tcp-{workspace_id}-backend");
+
+        let addr = parse_container_addr(container_ip, container_port)?;
+
+        self.send(RequestType::RemoveBackend(RemoveBackend {
+            cluster_id: cluster_id.clone(),
+            backend_id,
+            address: addr,
+        }))?;
+
+        self.send(RequestType::RemoveTcpFrontend(RemoveTcpFrontend {
+            cluster_id,
+            address: make_socket_addr([0, 0, 0, 0], exposed_port),
+        }))?;
+
+        Ok(())
+    }
+
     fn send(&mut self, request_type: RequestType) -> anyhow::Result<()> {
         let request = Request {
             request_type: Some(request_type),
@@ -107,6 +167,12 @@ impl SozuClient {
         }
         Ok(())
     }
+}
+
+fn parse_container_addr(ip_str: &str, port: u16) -> anyhow::Result<SocketAddress> {
+    use anyhow::Context;
+    let ip: std::net::Ipv4Addr = ip_str.parse().context("parse IPv4")?;
+    Ok(make_socket_addr(ip.octets(), port))
 }
 
 fn make_socket_addr(ip: [u8; 4], port: u16) -> SocketAddress {
