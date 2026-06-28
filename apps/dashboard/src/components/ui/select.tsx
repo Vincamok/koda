@@ -10,7 +10,7 @@ export interface SelectOption {
 }
 
 export interface SelectProps
-  extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, 'onChange'> {
+  extends React.SelectHTMLAttributes<HTMLSelectElement> {
   options: SelectOption[]
   placeholder?: string
   onValueChange?: (value: string) => void
