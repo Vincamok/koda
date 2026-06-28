@@ -7,6 +7,7 @@ WORKDIR /build
 # Fetch dependencies first (layer cache)
 COPY Cargo.toml Cargo.lock ./
 COPY apps/api/Cargo.toml apps/api/
+COPY apps/cli/Cargo.toml apps/cli/
 COPY services/orchestrator/Cargo.toml services/orchestrator/
 COPY services/worker/Cargo.toml services/worker/
 COPY services/git-manager/Cargo.toml services/git-manager/
@@ -14,10 +15,11 @@ COPY services/gateway/Cargo.toml services/gateway/
 COPY services/mcp-gateway/Cargo.toml services/mcp-gateway/
 
 # Stub src so cargo can resolve workspace without full source
-RUN mkdir -p apps/api/src services/orchestrator/src services/worker/src \
+RUN mkdir -p apps/api/src apps/cli/src services/orchestrator/src services/worker/src \
     services/git-manager/src services/gateway/src services/mcp-gateway/src && \
     echo "fn main(){}" | tee \
-      apps/api/src/main.rs services/orchestrator/src/main.rs \
+      apps/api/src/main.rs apps/cli/src/main.rs \
+      services/orchestrator/src/main.rs \
       services/worker/src/main.rs services/git-manager/src/main.rs \
       services/gateway/src/main.rs services/mcp-gateway/src/main.rs && \
     touch apps/api/src/lib.rs
