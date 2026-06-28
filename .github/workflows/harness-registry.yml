@@ -10,21 +10,24 @@ on:
         required: false
         default: 'all'
 
+# ── Registry self-hosted ─────────────────────────────────────────────────────
+# Format image : harness.vincz.fr/<account_id>/<registry_name>/<service>:<tag>
+# docker login  : harness.vincz.fr
+#   username    : HARNESS_USERNAME  (email du compte ou identifiant service account)
+#   password    : HARNESS_API_KEY   (PAT ou SA token, scope : artifact_registry_write)
 env:
-  HARNESS_REGISTRY: pkg.harness.io
+  HARNESS_HOST: harness.vincz.fr
 
-# Un seul déploiement à la fois vers Harness
+# Un seul push à la fois
 concurrency:
   group: harness-push
   cancel-in-progress: false
 
 jobs:
-  # ── Build + push vers Harness Artifact Registry ─────────────────────────────
+  # ── Build + push vers Harness Artifact Registry (self-hosted) ────────────────
   push:
     name: Push ${{ matrix.service }} → Harness
     runs-on: ubuntu-24.04
-    # N'est déclenché que si le CI principal a passé (via branch protection)
-    # ou en manuel via workflow_dispatch
     permissions:
       contents: read
 
@@ -54,33 +57,36 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # ── Compute image ref ───────────────────────────────────────────────────
-      - name: Compute image reference
+      # ── Calcul des tags ─────────────────────────────────────────────────────
+      # Harness self-hosted : <host>/<account_id>/<registry_name>/<image>:<tag>
+      - name: Compute image references
         id: ref
         run: |
+          HOST="${{ env.HARNESS_HOST }}"
           ACCOUNT="${{ secrets.HARNESS_ACCOUNT_ID }}"
           REGISTRY="${{ secrets.HARNESS_REGISTRY_NAME }}"
           SERVICE="${{ matrix.service }}"
           SHA="${GITHUB_SHA::8}"
 
-          BASE="${{ env.HARNESS_REGISTRY }}/${ACCOUNT}/${REGISTRY}/${SERVICE}"
+          BASE="${HOST}/${ACCOUNT}/${REGISTRY}/${SERVICE}"
 
-          echo "base=${BASE}"           >> "$GITHUB_OUTPUT"
-          echo "tag_sha=${BASE}:sha-${SHA}" >> "$GITHUB_OUTPUT"
-          echo "tag_latest=${BASE}:latest"  >> "$GITHUB_OUTPUT"
+          echo "tag_sha=${BASE}:sha-${SHA}"   >> "$GITHUB_OUTPUT"
+          echo "tag_latest=${BASE}:latest"     >> "$GITHUB_OUTPUT"
+          # Tag de version issu du package.json / Cargo.toml si disponible
+          echo "tag_ref=${BASE}:${GITHUB_REF_NAME//\//-}" >> "$GITHUB_OUTPUT"
 
       # ── Docker Buildx ───────────────────────────────────────────────────────
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ── Login Harness ───────────────────────────────────────────────────────
-      # Harness Artifact Registry accepte :
-      #   - username : n'importe quelle valeur non-vide (souvent l'email ou l'account ID)
-      #   - password : un Harness API Key (PAT ou Service Account token)
-      - name: Log in to Harness Artifact Registry
+      # ── Authentification Harness ────────────────────────────────────────────
+      # Sur Harness self-hosted, le registry Docker est exposé sur le même hôte.
+      # Si ton instance utilise un port non-standard, ajoute-le ici :
+      #   registry: harness.vincz.fr:5000
+      - name: Log in to Harness (harness.vincz.fr)
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.HARNESS_REGISTRY }}
+          registry: ${{ env.HARNESS_HOST }}
           username: ${{ secrets.HARNESS_USERNAME }}
           password: ${{ secrets.HARNESS_API_KEY }}
 
@@ -94,37 +100,41 @@ jobs:
           tags: |
             ${{ steps.ref.outputs.tag_sha }}
             ${{ steps.ref.outputs.tag_latest }}
-          # Couche de cache GHA partagée avec le job build du CI principal
+            ${{ steps.ref.outputs.tag_ref }}
+          # Cache GHA partagé avec le job build du CI principal
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
-          # Metadata OCI standard
           labels: |
             org.opencontainers.image.source=${{ github.repositoryUrl }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
-      # ── Résumé ─────────────────────────────────────────────────────────────
-      - name: Summary
+      # ── Résumé GitHub ───────────────────────────────────────────────────────
+      - name: Job summary
         run: |
-          echo "### ${{ matrix.service }} pushed to Harness" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tag | Image |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| --- | ----- |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| sha | \`${{ steps.ref.outputs.tag_sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| latest | \`${{ steps.ref.outputs.tag_latest }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### ${{ matrix.service }} → harness.vincz.fr"
+            echo ""
+            echo "| Tag | Image |"
+            echo "| --- | ----- |"
+            echo "| sha | \`${{ steps.ref.outputs.tag_sha }}\` |"
+            echo "| latest | \`${{ steps.ref.outputs.tag_latest }}\` |"
+            echo "| ref | \`${{ steps.ref.outputs.tag_ref }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
 
-  # ── Notification finale ─────────────────────────────────────────────────────
-  notify:
-    name: Notify push complete
+  # ── Statut global ───────────────────────────────────────────────────────────
+  status:
+    name: Push status
     runs-on: ubuntu-24.04
     needs: push
     if: always()
     steps:
-      - name: Push status
+      - name: Check result
         run: |
-          STATUS="${{ needs.push.result }}"
-          echo "Harness registry push: ${STATUS}"
-          if [ "${STATUS}" != "success" ]; then
-            echo "::warning::One or more images failed to push to Harness registry"
+          RESULT="${{ needs.push.result }}"
+          echo "Harness registry push: ${RESULT}"
+          if [ "${RESULT}" != "success" ]; then
+            echo "::error::Au moins un service n'a pas pu être poussé vers harness.vincz.fr"
             exit 1
           fi
+          echo "Tous les services ont été poussés avec succès."
