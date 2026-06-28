@@ -1,4 +1,4 @@
-FROM rust:1.79-slim AS builder
+FROM rust:1.85-slim AS builder
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev libssh2-1-dev zlib1g-dev && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
