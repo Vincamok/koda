@@ -259,6 +259,14 @@ impl PipelineRunner {
                 self.run_diff_review(pipeline_id, workspace_id, org_id, config).await?;
                 Ok(None)
             }
+            "refactor" => {
+                self.run_refactor(pipeline_id, workspace_id, org_id, config).await?;
+                Ok(None)
+            }
+            "shadow_deploy" => {
+                self.run_shadow_deploy(pipeline_id, workspace_id, org_id, config).await?;
+                Ok(None)
+            }
             _ => Err(anyhow::anyhow!("unknown pipeline type: {}", pipeline_type)),
         }
     }
@@ -1034,6 +1042,238 @@ Format your response as plain text with the 6 sections above."#,
 
         Ok(())
     }
+
+    // ── Refactor — LLM-driven automated cleanup ────────────────────────────────
+
+    async fn run_refactor(
+        &self,
+        pipeline_id: Uuid,
+        workspace_id: Uuid,
+        org_id: Uuid,
+        _config: &serde_json::Value,
+    ) -> anyhow::Result<()> {
+        let refactor_id: Uuid = sqlx::query_scalar!(
+            r#"INSERT INTO refactor_runs (workspace_id, organization_id, pipeline_id, status)
+               VALUES ($1, $2, $3, 'running')
+               RETURNING id"#,
+            workspace_id,
+            org_id,
+            pipeline_id,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let api_key = match &self.anthropic_api_key {
+            Some(k) if !k.is_empty() => k.clone(),
+            _ => {
+                sqlx::query!(
+                    "UPDATE refactor_runs SET status = 'completed', summary = 'Refactor skipped — ANTHROPIC_API_KEY not configured.', updated_at = NOW() WHERE id = $1",
+                    refactor_id,
+                )
+                .execute(&self.pool)
+                .await?;
+                return Ok(());
+            }
+        };
+
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let scan_path = volume_name
+            .map(|n| format!("/var/lib/docker/volumes/{}", n))
+            .unwrap_or_else(|| "/tmp/workspace_scan".to_string());
+
+        let code_snippets = collect_source_files_for_sast(&scan_path);
+
+        if code_snippets.is_empty() {
+            sqlx::query!(
+                "UPDATE refactor_runs SET status = 'completed', summary = 'No source files found.', updated_at = NOW() WHERE id = $1",
+                refactor_id,
+            )
+            .execute(&self.pool)
+            .await?;
+            return Ok(());
+        }
+
+        let code_context = code_snippets
+            .iter()
+            .map(|(path, content)| format!("=== {} ===\n{}", path, content))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        let prompt = format!(
+            r#"You are a senior software engineer performing an automated refactoring review.
+
+Analyze the following source code and identify opportunities for improvement:
+1. Code duplication and DRY violations
+2. Functions/methods that are too long (> 40 lines)
+3. Naming clarity issues (variables, functions, types)
+4. Dead code, unused imports, commented-out code
+5. Complexity hot spots (cyclomatic complexity > 10)
+6. Missing or inconsistent error handling
+7. Performance patterns (unnecessary clones, blocking in async, N+1)
+
+For each suggestion, provide a patch in unified diff format when possible.
+
+Respond in JSON format:
+{{"suggestions": [{{"file": "path", "line": 0, "category": "...", "description": "...", "patch": "..."}}], "summary": "..."}}
+
+Source code:
+{}
+"#,
+            code_context
+        );
+
+        let response = self
+            .http
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&serde_json::json!({
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 4096,
+                "messages": [{"role": "user", "content": prompt}]
+            }))
+            .send()
+            .await
+            .context("anthropic API request for refactor")?;
+
+        let status = response.status();
+        let body: serde_json::Value = response.json().await.context("parse anthropic response")?;
+
+        if !status.is_success() {
+            anyhow::bail!("anthropic API error {}: {:?}", status, body);
+        }
+
+        let llm_text = body
+            .pointer("/content/0/text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let result: serde_json::Value = serde_json::from_str(llm_text)
+            .unwrap_or_else(|_| extract_json_from_text(llm_text)
+                .unwrap_or(serde_json::json!({"suggestions": [], "summary": "Refactor analysis complete."})));
+
+        let suggestions = result.get("suggestions").and_then(|s| s.as_array()).cloned().unwrap_or_default();
+        let summary = result.get("summary").and_then(|s| s.as_str()).unwrap_or("Refactor analysis complete.").to_string();
+
+        sqlx::query!(
+            r#"UPDATE refactor_runs
+               SET status = 'completed', summary = $1, suggestions = $2, updated_at = NOW()
+               WHERE id = $3"#,
+            summary,
+            serde_json::json!(suggestions),
+            refactor_id,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        tracing::info!(refactor_id = %refactor_id, suggestions = suggestions.len(), "refactor run completed");
+        Ok(())
+    }
+
+    // ── Shadow Deploy — run a second workspace copy and compare output ──────────
+
+    async fn run_shadow_deploy(
+        &self,
+        pipeline_id: Uuid,
+        workspace_id: Uuid,
+        org_id: Uuid,
+        config: &serde_json::Value,
+    ) -> anyhow::Result<()> {
+        let shadow_id: Uuid = sqlx::query_scalar!(
+            r#"INSERT INTO shadow_deploys (workspace_id, organization_id, pipeline_id, status)
+               VALUES ($1, $2, $3, 'running')
+               RETURNING id"#,
+            workspace_id,
+            org_id,
+            pipeline_id,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Get the image and command to run in both primary and shadow containers
+        let image = config
+            .get("image")
+            .and_then(|v| v.as_str())
+            .unwrap_or("debian:bookworm-slim")
+            .to_string();
+
+        let primary_cmd = config
+            .get("primary_command")
+            .and_then(|v| v.as_str())
+            .unwrap_or("echo 'primary'")
+            .to_string();
+
+        let shadow_cmd = config
+            .get("shadow_command")
+            .and_then(|v| v.as_str())
+            .unwrap_or("echo 'shadow'")
+            .to_string();
+
+        let docker = Docker::connect_with_http(
+            &self.docker_host,
+            120,
+            bollard::API_DEFAULT_VERSION,
+        )
+        .context("connect to docker-socket-proxy")?;
+
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let binds = volume_name.map(|vn| vec![format!("{}:/workspace:ro", vn)]);
+
+        let shadow_id_str = shadow_id.to_string();
+        let primary_name = format!("koda-shadow-primary-{}", &shadow_id_str[..8]);
+        let shadow_name = format!("koda-shadow-compare-{}", &shadow_id_str[..8]);
+
+        let workspace_id_str = workspace_id.to_string();
+
+        let (primary_out, shadow_out) = tokio::join!(
+            shadow_run_container(
+                &docker, &primary_name, &image, &primary_cmd, binds.clone(),
+                &workspace_id_str, &shadow_id_str,
+            ),
+            shadow_run_container(
+                &docker, &shadow_name, &image, &shadow_cmd, binds,
+                &workspace_id_str, &shadow_id_str,
+            ),
+        );
+
+        let primary_output = primary_out.unwrap_or_else(|e| format!("ERROR: {e}"));
+        let shadow_output = shadow_out.unwrap_or_else(|e| format!("ERROR: {e}"));
+        let diverged = primary_output != shadow_output;
+
+        sqlx::query!(
+            r#"UPDATE shadow_deploys
+               SET status = 'completed', primary_output = $1, shadow_output = $2,
+                   diverged = $3, updated_at = NOW()
+               WHERE id = $4"#,
+            primary_output,
+            shadow_output,
+            diverged,
+            shadow_id,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        tracing::info!(
+            shadow_id = %shadow_id,
+            diverged = diverged,
+            "shadow deploy completed"
+        );
+
+        Ok(())
+    }
 }
 
 // ── SAST helpers ──────────────────────────────────────────────────────────────
@@ -1330,6 +1570,81 @@ fn extract_git_diff(repo_path: &str) -> anyhow::Result<(String, i32, i32, i32, S
     .context("format diff")?;
 
     Ok((diff_text, files_changed, insertions, deletions, base_ref, head_ref))
+}
+
+async fn shadow_run_container(
+    docker: &Docker,
+    name: &str,
+    image: &str,
+    cmd: &str,
+    binds: Option<Vec<String>>,
+    workspace_id_str: &str,
+    shadow_id_str: &str,
+) -> anyhow::Result<String> {
+    let mut labels = HashMap::new();
+    labels.insert("koda.managed", "true");
+    labels.insert("koda.type", "shadow_deploy");
+    labels.insert("koda.workspace_id", workspace_id_str);
+    labels.insert("koda.shadow_id", shadow_id_str);
+
+    docker.create_container(
+        Some(CreateContainerOptions { name, platform: None }),
+        Config {
+            image: Some(image),
+            cmd: Some(vec!["/bin/sh", "-c", cmd]),
+            working_dir: Some("/workspace"),
+            labels: Some(labels),
+            host_config: Some(HostConfig {
+                binds,
+                resources: Some(Resources {
+                    nano_cpus: Some(500_000_000),
+                    memory: Some(256 * 1024 * 1024),
+                    pids_limit: Some(128),
+                    cpu_period: Some(100_000),
+                    cpu_quota: Some(50_000),
+                    ..Default::default()
+                }),
+                auto_remove: Some(false),
+                network_mode: Some("none".to_string()),
+                cap_drop: Some(vec!["ALL".to_string()]),
+                security_opt: Some(vec!["no-new-privileges:true".to_string()]),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+    )
+    .await
+    .context("create shadow container")?;
+
+    docker
+        .start_container(name, None::<StartContainerOptions<String>>)
+        .await
+        .context("start shadow container")?;
+
+    let mut wait = docker.wait_container(name, None::<WaitContainerOptions<String>>);
+    tokio::time::timeout(std::time::Duration::from_secs(300), wait.next())
+        .await
+        .context("shadow container timed out")?;
+
+    let log_opts = LogsOptions::<String> {
+        stdout: true,
+        stderr: true,
+        tail: "200".to_string(),
+        ..Default::default()
+    };
+    let mut logs_stream = docker.logs(name, Some(log_opts));
+    let mut lines = Vec::new();
+    while let Some(Ok(msg)) = logs_stream.next().await {
+        lines.push(msg.to_string());
+        if lines.len() >= 200 {
+            break;
+        }
+    }
+    docker
+        .remove_container(name, Some(RemoveContainerOptions { force: true, ..Default::default() }))
+        .await
+        .ok();
+    Ok(lines.join(""))
 }
 
 fn default_image_for(pipeline_type: &str) -> &'static str {

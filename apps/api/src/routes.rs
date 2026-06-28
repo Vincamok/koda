@@ -8,7 +8,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    handlers::{admin, auth, env_vars, git, ide, mcp, mfa, orgs, personal, pipelines, quota, security_policy, teams, tickets, tokens, user_settings, workspace_notes, workspaces, ws_terminal},
+    handlers::{admin, auth, env_vars, git, ide, mcp, mfa, orgs, personal, pipelines, plugins, quota, security_policy, shared_terminal, teams, themes, tickets, tokens, user_settings, workspace_notes, workspaces, ws_terminal},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::rate_limit::rate_limit_middleware,
     middleware::request_id::request_id_layer,
@@ -46,6 +46,8 @@ where
         .route("/api/v1/user/settings", put(user_settings::put_user_settings))
         // WebSocket terminal
         .route("/api/v1/ws/:workspace_id/terminal", get(ws_terminal::ws_terminal))
+        // Shared terminal (pair programming)
+        .route("/api/v1/ws/:workspace_id/shared-terminal/:session_id", get(shared_terminal::ws_shared_terminal))
         // SSH info for koda connect CLI
         .route("/api/v1/workspaces/:uid/ssh", get(workspaces::get_workspace_ssh))
         // MFA
@@ -131,6 +133,19 @@ where
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/bindings", get(mcp::get_workspace_mcp_bindings))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/bindings", post(mcp::post_workspace_mcp_binding))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/mcp/bindings/:binding_id", delete(mcp::delete_workspace_mcp_binding))
+        // Shared terminal sessions
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/terminal-sessions", post(shared_terminal::create_terminal_session))
+        // Plugin marketplace
+        .route("/api/v1/organizations/:org_id/plugins", get(plugins::list_plugins))
+        .route("/api/v1/organizations/:org_id/plugins/:plugin_id", get(plugins::get_plugin))
+        .route("/api/v1/organizations/:org_id/plugins", post(plugins::submit_plugin))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/plugins", get(plugins::list_workspace_plugins))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/plugins/:plugin_id/install", post(plugins::install_plugin))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/plugins/:plugin_id/uninstall", post(plugins::uninstall_plugin))
+        // Theme marketplace
+        .route("/api/v1/themes", get(themes::list_themes))
+        .route("/api/v1/themes/:theme_id", get(themes::get_theme))
+        .route("/api/v1/themes/load-from-url", post(themes::load_theme_from_url))
         // Workspace notes
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/notes", get(workspace_notes::get_workspace_note))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/notes", put(workspace_notes::put_workspace_note))
@@ -163,6 +178,8 @@ where
         .route("/api/v1/admin/instances", get(admin::admin_list_instances))
         .route("/api/v1/admin/instances", post(admin::admin_create_instance))
         .route("/api/v1/admin/instances/:instance_id", delete(admin::admin_delete_instance))
+        .route("/api/v1/admin/instances/load-balance", get(admin::admin_instance_load_balance))
+        .route("/api/v1/admin/organizations/:org_id/migrate", post(admin::admin_migrate_org))
         .layer(middleware::from_fn(require_super_admin))
         .layer(middleware::from_fn_with_state(state.clone(), require_auth));
 

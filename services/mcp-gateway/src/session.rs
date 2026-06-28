@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use serde_json::Value;
-use crate::{config::Config, connectors::ConnectorRegistry, secret::SecretResolver};
+use crate::{config::Config, connectors::ConnectorRegistry, proxy::StdioConnector, secret::SecretResolver};
 
 pub struct SessionManager {
     config:   Config,
@@ -104,16 +104,36 @@ impl SessionManager {
 
         let config = self.secrets.resolve_binding_config(binding_id).await?;
 
-        let connector = self.registry.get(connector_id)
-            .ok_or_else(|| anyhow::anyhow!("Connecteur inconnu : {connector_id}"))?;
+        // Check if this is a stdio community connector
+        let connector_type = fields.get("connector_type").map(String::as_str).unwrap_or("builtin");
 
-        let result = connector.call_tool(tool_name, arguments, &config).await?;
+        let result = if connector_type == "stdio" {
+            let stdio = StdioConnector::from_config(&config)
+                .map_err(|e| anyhow::anyhow!("stdio config error: {e}"))?;
+            let req_id: u64 = fields.get("request_id")
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(1);
+            stdio.call_tool(tool_name, arguments, req_id).await?
+        } else {
+            let connector = self.registry.get(connector_id)
+                .ok_or_else(|| anyhow::anyhow!("Connecteur inconnu : {connector_id}"))?;
+            connector.call_tool(tool_name, arguments, &config).await?
+        };
 
         tracing::debug!(connector = %connector_id, tool = %tool_name, is_error = result.is_error, "MCP call terminé");
 
-        // TODO KODA-D02: publier le résultat dans Redis (clé reply_to fournie par l'API)
-        // pour que l'API Axum retourne la réponse au client SSE.
-        let _ = result;
+        // Publish result to reply_to key if provided (for API SSE response)
+        if let Some(reply_to) = fields.get("reply_to") {
+            let client = redis::Client::open(self.config.redis_url.as_str())?;
+            let mut pub_conn = client.get_async_connection().await?;
+            let _: redis::RedisResult<()> = redis::cmd("SET")
+                .arg(reply_to)
+                .arg(serde_json::to_string(&result.content)?)
+                .arg("EX").arg(60)
+                .query_async(&mut pub_conn)
+                .await;
+        }
+
         Ok(())
     }
 }

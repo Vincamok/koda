@@ -12,6 +12,10 @@ pub struct WorkerConfig {
     pub docker_host: String,
     pub anthropic_api_key: Option<String>,
     pub workspace_root: Option<String>,
+    /// AES-256-GCM key (hex-encoded 32 bytes) for decrypting S3 credentials
+    pub secret_encryption_key: Option<String>,
+    /// Loki push API base URL (e.g. http://loki:3100). Empty = disabled.
+    pub loki_url: Option<String>,
 }
 
 impl WorkerConfig {

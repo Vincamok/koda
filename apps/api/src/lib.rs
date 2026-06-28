@@ -21,6 +21,8 @@ pub struct AppState {
     pub config: AppConfig,
     pub http: reqwest::Client,
     pub redis: MultiplexedConnection,
+    /// Kept for creating dedicated connections (pub/sub, blocking reads)
+    pub redis_client: redis::Client,
 }
 
 impl FromRef<AppState> for PgPool {

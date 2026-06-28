@@ -184,7 +184,7 @@ Pipelines de vérification automatisés, webhooks, triggers.
 
 ---
 
-## v1.0.0 — MVP Stable `[Phase 4 · S23-26]` — En cours
+## v1.0.0 — MVP Stable `[Phase 4 · S23-26]` ✓
 
 ### Objectif
 Sécurité renforcée, observabilité, tests E2E, audit.
@@ -226,18 +226,21 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 
 ## Backlog post-v1.0.0
 
-- Workspace forking
-- Env Manager UI (variables d'environnement par workspace)
-- Terminaux partagés (pair programming WebRTC ou multiplexage PTY)
-- Shadow deployment pour comparaison
-- Support multi-runtime (Node/Python/Go) dans les templates (matrix)
-- Auto-hibernation des workspaces inactifs (détection idle + suspend)
-- Centralisation des logs avec recherche (Loki)
-- Alerting sur crash boucle et surconsommation
-- Pipeline IA refactoring/cleanup automatique
-- Export artefacts vers S3-compatible
-- Connecteurs MCP community (stdio, marketplace) — `proxy.rs` activé
-- `themeRegistry.loadFromUrl()` marketplace de thèmes
-- **Multi-instances avancé** : migration d'org d'une instance à l'autre, load balancing inter-instances
-- **`TicketRecord`** : lien workspace ↔ ticket externe (Jira, Linear, GitHub Issues)
-- **Marketplace de plugins** workspace (au-delà des 4 built-in)
+### v1.0.1 ✓
+- [x] Workspace forking (`POST .../fork`, migration 044, quota check, copy git config)
+- [x] Env Manager UI (variables d'environnement par workspace — AES-256-GCM, masquage secrets)
+- [x] **`TicketRecord`** : lien workspace ↔ ticket externe (Jira, Linear, GitHub Issues)
+
+### v1.1.0 ✓
+- [x] Terminaux partagés (multiplexage PTY Redis pub/sub — owner + guests viewers/writers)
+- [x] Shadow deployment pour comparaison (`shadow_deploy` pipeline type — deux containers parallèles)
+- [x] Support multi-runtime (Node/Python/Go) dans les templates (matrix — `template_runtime_variants`)
+- [x] Auto-hibernation des workspaces inactifs (`HibernationWatcher` — idle detection + bollard stop)
+- [x] Centralisation des logs avec recherche (Loki — `LokiShipper` → `/loki/api/v1/push`)
+- [x] Alerting sur crash boucle et surconsommation (`AlertWatcher` — quota, pipeline failures, stuck)
+- [x] Pipeline IA refactoring/cleanup automatique (`refactor` pipeline type — LLM + patch suggestions)
+- [x] Export artefacts vers S3-compatible (`S3Exporter` — AES-256-GCM credentials, PUT S3)
+- [x] Connecteurs MCP community (stdio, marketplace) — `proxy.rs` activé (`StdioConnector`)
+- [x] `themeRegistry.loadFromUrl()` marketplace de thèmes (HTTPS fetch + upsert DB)
+- [x] **Multi-instances avancé** : migration d'org + load balancing (`admin_migrate_org`, `admin_instance_load_balance`)
+- [x] **Marketplace de plugins** workspace (submit, approve, install, uninstall)

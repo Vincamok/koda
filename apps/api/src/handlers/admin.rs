@@ -989,6 +989,131 @@ pub async fn admin_get_org_affinity(
     }})))
 }
 
+// ── Admin: Org Instance Migration ─────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, utoipa::ToSchema)]
+pub struct MigrateOrgRequest {
+    pub target_instance_id: Uuid,
+}
+
+pub async fn admin_migrate_org(
+    State(pool): State<PgPool>,
+    Extension(admin): Extension<AuthUser>,
+    Path(org_id): Path<Uuid>,
+    Json(body): Json<MigrateOrgRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Find current instance affinity
+    let current = sqlx::query!(
+        "SELECT instance_id FROM org_instance_affinities WHERE organization_id = $1",
+        org_id,
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    let source_id = current.map(|r| r.instance_id).unwrap_or(body.target_instance_id);
+
+    if source_id == body.target_instance_id {
+        return Err(AppError::BadRequest("source and target instance are the same".into()));
+    }
+
+    // Verify target instance exists and is healthy
+    let target = sqlx::query!(
+        "SELECT id, name, status FROM koda_instances WHERE id = $1",
+        body.target_instance_id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if target.status != "healthy" {
+        return Err(AppError::BadRequest(format!(
+            "target instance '{}' is not healthy (status: {})",
+            target.name, target.status
+        )));
+    }
+
+    // Create migration record
+    let migration_id: Uuid = sqlx::query_scalar!(
+        r#"INSERT INTO instance_org_migrations
+               (organization_id, source_instance, target_instance, initiated_by, status)
+           VALUES ($1, $2, $3, $4, 'pending')
+           RETURNING id"#,
+        org_id,
+        source_id,
+        body.target_instance_id,
+        admin.id,
+    )
+    .fetch_one(&pool)
+    .await?;
+
+    // Update affinity immediately (target instance will pick up workspaces on next schedule)
+    sqlx::query!(
+        r#"INSERT INTO org_instance_affinities (organization_id, instance_id)
+           VALUES ($1, $2)
+           ON CONFLICT (organization_id) DO UPDATE SET instance_id = EXCLUDED.instance_id"#,
+        org_id,
+        body.target_instance_id,
+    )
+    .execute(&pool)
+    .await?;
+
+    // Emit audit event
+    let _ = sqlx::query!(
+        r#"INSERT INTO audit_events (actor_id, organization_id, action, resource_type, resource_id, metadata)
+           VALUES ($1, $2, 'org.instance_migration_initiated', 'organization', $2, $3)"#,
+        admin.id,
+        org_id,
+        serde_json::json!({
+            "migration_id": migration_id,
+            "source_instance": source_id,
+            "target_instance": body.target_instance_id,
+            "target_name": target.name,
+        }),
+    )
+    .execute(&pool)
+    .await;
+
+    tracing::info!(
+        migration_id = %migration_id,
+        org_id = %org_id,
+        target = %target.name,
+        "org instance migration initiated"
+    );
+
+    Ok(Json(serde_json::json!({
+        "migration_id": migration_id,
+        "status": "pending",
+        "target_instance": target.name,
+    })))
+}
+
+/// GET /api/v1/admin/instances/load-balance
+/// Returns the least-loaded healthy instance (for automatic org placement).
+pub async fn admin_instance_load_balance(
+    State(pool): State<PgPool>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let row = sqlx::query!(
+        r#"SELECT id, name, base_url, workspace_count, cpu_usage_pct, ram_usage_pct
+           FROM koda_instances
+           WHERE status = 'healthy'
+           ORDER BY workspace_count ASC, cpu_usage_pct ASC NULLS LAST
+           LIMIT 1"#,
+    )
+    .fetch_optional(&pool)
+    .await?;
+
+    match row {
+        Some(r) => Ok(Json(serde_json::json!({
+            "instance_id": r.id,
+            "name": r.name,
+            "base_url": r.base_url,
+            "workspace_count": r.workspace_count,
+            "cpu_usage_pct": r.cpu_usage_pct,
+        }))),
+        None => Err(AppError::NotFound),
+    }
+}
+
 // ── Admin: MFA Reset ──────────────────────────────────────────────────────────
 
 #[utoipa::path(

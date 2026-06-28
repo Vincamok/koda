@@ -9,6 +9,43 @@
 
 ---
 
+## [1.1.0] — 2026-06-28 · Backlog post-v1.0.0 — Batch 2
+
+### Added
+- **Terminaux partagés** : `POST /api/v1/organizations/:org_id/workspaces/:workspace_id/terminal-sessions` + WebSocket `GET /api/v1/ws/:workspace_id/shared-terminal/:session_id` — multiplexage PTY via Redis pub/sub ; l'owner voit et tape, les guests voient en lecture (ou en écriture si `allow_write = true`)
+- **Migration** `202600010053_terminal_sessions_create.sql` : table `terminal_sessions` (owner, container_id, channel Redis, RLS)
+- **Shadow deployment** : pipeline type `shadow_deploy` — exécute deux containers en parallèle (primary vs shadow), compare les outputs, stocke divergence
+- **Migration** `202600010052_shadow_deploys_create.sql` : table `shadow_deploys` (primary_output, shadow_output, diverged, RLS)
+- **Pipeline IA Refactoring** : pipeline type `refactor` — LLM Anthropic analyse les sources, génère des suggestions JSON (file, line, category, patch), stocke dans `refactor_runs`
+- **Migration** `202600010051_refactor_runs_create.sql` : table `refactor_runs` (suggestions JSONB, RLS)
+- **Pipeline types étendus** : `refactor` + `shadow_deploy` ajoutés au router `execute_pipeline_type` + à la contrainte CHECK (`202600010050_extend_pipeline_types_2.sql`)
+- **Worker — Auto-hibernation** : `HibernationWatcher` (module `hibernation.rs`) — vérifie toutes les 2 min les workspaces `running` dont `last_activity_at` dépasse le seuil par org, stoppe le container bollard, passe le status à `stopped`, émet un `audit_event`
+- **Migration** `202600010047_workspace_hibernation_create.sql` : table `workspace_hibernation_configs` + colonne `last_activity_at` sur `workspaces`
+- **Worker — Alerting** : `AlertWatcher` (module `alerting.rs`) — vérifie toutes les 5 min : quota ≥ 80%, pipelines ≥ 3 échecs/1h, workspaces bloqués > 15 min ; déduplication par fenêtre de temps ; webhook POST si `alert_rules.webhook_url` défini
+- **Migration** `202600010048_alert_rules_create.sql` : tables `alert_rules` + `alert_events`
+- **Worker — Export S3** : `S3Exporter` (module `s3_exporter.rs`) — consomme `koda:jobs:export` ; déchiffre les credentials AES-256-GCM depuis `s3_export_configs` ; PUT vers S3-compatible ; dead-letter après 3 tentatives
+- **Migration** `202600010049_artifact_exports_create.sql` : tables `s3_export_configs` + `artifact_exports`
+- **Worker — Loki shipper** : `LokiShipper` (module `loki_shipper.rs`) — expédie toutes les 30s les entrées non-shippées de `log_entries` vers Loki (API `/loki/api/v1/push`)
+- **Migration** `202600010056_log_entries_create.sql` : table `log_entries` + index `shipped_at` + purge auto 30 jours
+- **Marketplace de plugins** : `GET|POST /api/v1/organizations/:org_id/plugins`, `GET /api/v1/organizations/:org_id/plugins/:id`, `POST .../workspaces/:id/plugins/:id/install|uninstall` — au-delà des 4 built-in ; soumission community avec validation
+- **Migration** `202600010054_plugin_marketplace_extend.sql` : colonnes marketplace sur `plugin_definitions` (author, category, approved, repo_url, config_schema)
+- **Marketplace de thèmes + `themeRegistry.loadFromUrl()`** : `GET /api/v1/themes`, `GET /api/v1/themes/:id`, `POST /api/v1/themes/load-from-url` — charge un thème JSON depuis une URL HTTPS, upsert en DB
+- **Migration** `202600010055_themes_create.sql` : table `themes` avec 4 skins built-in (default, minimal, pro, light)
+- **Connecteurs MCP community (stdio)** : proxy `StdioConnector` activé dans `mcp-gateway/src/proxy.rs` — spawn d'un process stdio JSON-RPC avec timeout 30s ; deux exemples : `filesystem` + `brave-search`
+- **Migration** `202600010059_mcp_community_connectors.sql` : colonnes `connector_type|community|approved|default_command` sur `mcp_connector_definitions`
+- **Multi-instances avancé — migration d'org** : `POST /api/v1/admin/organizations/:org_id/migrate` — déplace l'affinité d'instance d'une org + crée un `instance_org_migrations` record + audit event
+- **Multi-instances avancé — load balancing** : `GET /api/v1/admin/instances/load-balance` — retourne l'instance `healthy` avec le moins de workspaces
+- **Migration** `202600010058_instance_migrations_create.sql` : table `instance_org_migrations` + colonnes `workspace_count|cpu_usage_pct|ram_usage_pct` sur `koda_instances`
+- **Support multi-runtime templates** : `Migration` `202600010057_template_matrix_create.sql` — table `template_runtime_variants` (runtime, version, docker_image, devcontainer_override, is_default)
+- **`AppState.redis_client`** : ajout du `redis::Client` dans AppState pour les connexions dédiées (pub/sub, blocking)
+- **Worker main.rs** : câblage des 4 nouveaux services (`HibernationWatcher`, `AlertWatcher`, `S3Exporter`, `LokiShipper`) via `tokio::try_join!`
+
+### Changed
+- `services/worker/src/config.rs` : champs `secret_encryption_key` + `loki_url` ajoutés
+- `mcp-gateway/src/session.rs` : dispatch vers `StdioConnector` si `connector_type = 'stdio'` ; publication résultat dans Redis (clé `reply_to`)
+
+---
+
 ## [1.0.1] — 2026-06-28 · Workspace Fork, Env Vars, Ticket Records
 
 ### Added
