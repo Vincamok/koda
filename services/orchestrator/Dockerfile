@@ -1,7 +1,7 @@
 FROM rust:1.88-slim AS builder
 
 # Limiter le parallélisme pour éviter l'OOM sur les petits runners
-ENV CARGO_BUILD_JOBS=2
+ENV CARGO_BUILD_JOBS=1
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
