@@ -9,6 +9,23 @@
 
 ---
 
+## [0.4.2] — 2026-06-28 · Phase 3 — Pipeline IA review de diff
+
+### Added
+- Pipeline type `diff_review` : review automatique du diff Git par LLM (Anthropic claude-haiku)
+  - Extraction diff via git2 (HEAD~1..HEAD) avec stats files/insertions/deletions
+  - Prompt structuré : summary, qualité code, correctness, sécurité, performance, suggestions
+  - Stockage dans table `diff_reviews` avec `review_text` + `summary` + stats Git
+  - Fallback gracieux si repo non cloné ou ANTHROPIC_API_KEY absent
+- Migration `202600010040_diff_reviews_create.sql` : table `diff_reviews` (RLS activé)
+- Migration `202600010041_extend_pipeline_types.sql` : extension CHECK `pipeline_type` pour `diff_review`
+- API `GET .../workspaces/{id}/diff-reviews` : liste des reviews IA par workspace
+- Dashboard onglet Diff : affichage reviews IA avec stats, summary, review complète dépliable
+- `DiffReview` type dans `@koda/shared-types`
+- `listDiffReviews` dans `apps/dashboard/src/lib/api-client.ts`
+
+---
+
 ## [0.4.1] — 2026-06-28 · Phase 3 — Correctifs & complétions pipelines
 
 ### Added

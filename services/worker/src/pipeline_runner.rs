@@ -255,6 +255,10 @@ impl PipelineRunner {
                 self.run_container_pipeline(pipeline_type, pipeline_id, workspace_id, config).await?;
                 Ok(None)
             }
+            "diff_review" => {
+                self.run_diff_review(pipeline_id, workspace_id, org_id, config).await?;
+                Ok(None)
+            }
             _ => Err(anyhow::anyhow!("unknown pipeline type: {}", pipeline_type)),
         }
     }
@@ -870,6 +874,168 @@ Source code to analyze:
     }
 }
 
+    // ── Diff Review — LLM review automatique du diff Git ──────────────────────
+
+    async fn run_diff_review(
+        &self,
+        pipeline_id: Uuid,
+        workspace_id: Uuid,
+        org_id: Uuid,
+        _config: &serde_json::Value,
+    ) -> anyhow::Result<()> {
+        let review = sqlx::query!(
+            r#"INSERT INTO diff_reviews (workspace_id, organization_id, pipeline_id, status)
+               VALUES ($1, $2, $3, 'running')
+               RETURNING id"#,
+            workspace_id,
+            org_id,
+            pipeline_id,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let api_key = match &self.anthropic_api_key {
+            Some(k) if !k.is_empty() => k.clone(),
+            _ => {
+                sqlx::query!(
+                    "UPDATE diff_reviews SET status = 'completed', summary = 'Diff review skipped — ANTHROPIC_API_KEY not configured.', updated_at = NOW() WHERE id = $1",
+                    review.id,
+                )
+                .execute(&self.pool)
+                .await?;
+                return Ok(());
+            }
+        };
+
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let repo_path = volume_name
+            .map(|n| format!("/var/lib/docker/volumes/{}", n))
+            .unwrap_or_else(|| "/tmp/workspace_scan".to_string());
+
+        // Extract diff via git2
+        let (diff_text, files_changed, insertions, deletions, base_ref, head_ref) =
+            extract_git_diff(&repo_path).unwrap_or_else(|e| {
+                tracing::warn!(error = %e, "git diff extraction failed — using empty diff");
+                (String::new(), 0, 0, 0, "HEAD~1".to_string(), "HEAD".to_string())
+            });
+
+        if diff_text.is_empty() {
+            sqlx::query!(
+                r#"UPDATE diff_reviews SET status = 'completed',
+                   summary = 'No diff found — workspace repo may not be initialized yet.',
+                   files_changed = 0, insertions = 0, deletions = 0,
+                   base_ref = $1, head_ref = $2, updated_at = NOW()
+                   WHERE id = $3"#,
+                base_ref,
+                head_ref,
+                review.id,
+            )
+            .execute(&self.pool)
+            .await?;
+            return Ok(());
+        }
+
+        // Truncate diff to avoid token limits (max ~100KB)
+        let diff_excerpt = if diff_text.len() > 100_000 {
+            format!("{}\n\n[... diff truncated at 100KB ...]", &diff_text[..100_000])
+        } else {
+            diff_text.clone()
+        };
+
+        let prompt = format!(
+            r#"You are a senior software engineer performing a code review. Analyze the following git diff and provide:
+
+1. **Summary** (2-3 sentences): what changed and why it matters
+2. **Code quality**: readability, naming, complexity, duplication
+3. **Correctness**: logic errors, edge cases, off-by-one errors
+4. **Security**: injection, auth bypass, data exposure, input validation
+5. **Performance**: N+1 queries, unnecessary allocations, blocking calls
+6. **Suggestions**: specific, actionable improvements
+
+Be concise and direct. Flag Critical/High/Medium/Low issues inline.
+
+Git diff ({files_changed} files, +{insertions} -{deletions}):
+
+```diff
+{diff_excerpt}
+```
+
+Format your response as plain text with the 6 sections above."#,
+            files_changed = files_changed,
+            insertions = insertions,
+            deletions = deletions,
+            diff_excerpt = diff_excerpt,
+        );
+
+        let response = self
+            .http
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&serde_json::json!({
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 2048,
+                "messages": [{"role": "user", "content": prompt}]
+            }))
+            .send()
+            .await
+            .context("anthropic API request for diff review")?;
+
+        let status = response.status();
+        let body: serde_json::Value = response.json().await.context("parse anthropic response")?;
+
+        if !status.is_success() {
+            anyhow::bail!("anthropic API error {}: {:?}", status, body);
+        }
+
+        let review_text = body
+            .pointer("/content/0/text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        // Extract first line as summary
+        let summary = review_text
+            .lines()
+            .find(|l| !l.trim().is_empty() && !l.starts_with('#'))
+            .unwrap_or("AI diff review completed.")
+            .to_string();
+
+        sqlx::query!(
+            r#"UPDATE diff_reviews
+               SET status = 'completed', summary = $1, review_text = $2,
+                   files_changed = $3, insertions = $4, deletions = $5,
+                   base_ref = $6, head_ref = $7, updated_at = NOW()
+               WHERE id = $8"#,
+            summary,
+            review_text,
+            files_changed,
+            insertions,
+            deletions,
+            base_ref,
+            head_ref,
+            review.id,
+        )
+        .execute(&self.pool)
+        .await?;
+
+        tracing::info!(
+            review_id = %review.id,
+            files = files_changed,
+            "diff review completed"
+        );
+
+        Ok(())
+    }
+}
+
 // ── SAST helpers ──────────────────────────────────────────────────────────────
 
 fn collect_source_files_for_sast(path: &str) -> Vec<(String, String)> {
@@ -1107,6 +1273,63 @@ fn map_cvss_to_severity(cvss: &str) -> String {
             .to_string();
     }
     "medium".to_string()
+}
+
+// ── Git diff extraction ────────────────────────────────────────────────────────
+
+fn extract_git_diff(repo_path: &str) -> anyhow::Result<(String, i32, i32, i32, String, String)> {
+    let repo = git2::Repository::open(repo_path)
+        .with_context(|| format!("open repo at {repo_path}"))?;
+
+    let head = repo.head().context("get HEAD")?;
+    let head_commit = head.peel_to_commit().context("peel HEAD")?;
+    let head_tree = head_commit.tree().context("HEAD tree")?;
+
+    let head_ref = head
+        .shorthand()
+        .unwrap_or("HEAD")
+        .to_string();
+
+    // Try to diff HEAD against its parent; if no parent (initial commit), diff against empty tree
+    let (diff, base_ref) = if let Ok(parent) = head_commit.parent(0) {
+        let parent_tree = parent.tree().context("parent tree")?;
+        let base = format!("{}~1", head_ref);
+        (
+            repo.diff_tree_to_tree(Some(&parent_tree), Some(&head_tree), None)
+                .context("diff HEAD~1..HEAD")?,
+            base,
+        )
+    } else {
+        (
+            repo.diff_tree_to_tree(None, Some(&head_tree), None)
+                .context("diff empty..HEAD")?,
+            "empty".to_string(),
+        )
+    };
+
+    let stats = diff.stats().context("diff stats")?;
+    let files_changed = stats.files_changed() as i32;
+    let insertions = stats.insertions() as i32;
+    let deletions = stats.deletions() as i32;
+
+    // Build unified diff text
+    let mut diff_text = String::new();
+    diff.print(git2::DiffFormat::Patch, |_delta, _hunk, line| {
+        let prefix = match line.origin() {
+            '+' => "+",
+            '-' => "-",
+            ' ' => " ",
+            _ => "",
+        };
+        diff_text.push_str(prefix);
+        if let Ok(s) = std::str::from_utf8(line.content()) {
+            diff_text.push_str(s);
+        }
+        true
+    })
+    .context("format diff")?;
+
+    Ok((diff_text, files_changed, insertions, deletions, base_ref, head_ref))
 }
 
 fn default_image_for(pipeline_type: &str) -> &'static str {

@@ -23,9 +23,10 @@ import {
   listWebhookEvents,
   listSecurityReports,
   listWorkspaceActivity,
+  listDiffReviews,
 } from '@/lib/api-client'
 import { AppShell } from '@/components/layout/app-shell'
-import type { Pipeline, IncomingWebhookEvent, SecurityReport, AuditEvent } from '@koda/shared-types'
+import type { Pipeline, IncomingWebhookEvent, SecurityReport, AuditEvent, DiffReview } from '@koda/shared-types'
 
 interface Props {
   params: { locale: string; id: string }
@@ -104,12 +105,14 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
   let webhooks: IncomingWebhookEvent[] = []
   let reports: SecurityReport[] = []
   let activity: AuditEvent[] = []
+  let diffReviews: DiffReview[] = []
 
   try {
     if (tab === 'pipelines') pipelines = await listPipelines(orgId, id)
     if (tab === 'webhooks') webhooks = await listWebhookEvents(orgId, id)
     if (tab === 'security') reports = await listSecurityReports(orgId, id)
     if (tab === 'activity') activity = await listWorkspaceActivity(orgId, id)
+    if (tab === 'diff') diffReviews = await listDiffReviews(orgId, id)
   } catch {
     // API unavailable — show empty states
   }
@@ -301,12 +304,67 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
         {/* ── Diff tab ───────────────────────────────────────────────────── */}
         {tab === 'diff' && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-koda-text">Diff viewer</h3>
-            <EmptyState
-              icon={<GitBranch className="h-10 w-10 text-koda-text-muted" />}
-              title="Diff viewer"
-              description="Ouvrez le web-client pour voir le diff Git en temps réel depuis le panel Git de l'IDE."
-            />
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-koda-text">Reviews IA de diff</h3>
+              <span className="text-xs text-koda-text-muted">
+                Pipeline type: <code className="rounded bg-koda-surface px-1 font-mono">diff_review</code>
+              </span>
+            </div>
+
+            {diffReviews.length === 0 ? (
+              <EmptyState
+                icon={<GitBranch className="h-10 w-10 text-koda-text-muted" />}
+                title="Aucune review IA"
+                description="Créez un pipeline de type diff_review et lancez-le pour obtenir une review automatique du diff Git par l'IA."
+              />
+            ) : (
+              <div className="space-y-4">
+                {diffReviews.map((r) => (
+                  <div key={r.id} className="rounded-xl border border-koda-border bg-koda-surface p-4 space-y-3">
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <PipelineStatusBadge status={r.status} />
+                        {r.base_ref && r.head_ref && (
+                          <span className="font-mono text-xs text-koda-text-muted">
+                            {r.base_ref} → {r.head_ref}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-koda-text-muted">
+                        {r.files_changed != null && (
+                          <span>{r.files_changed} fichier{r.files_changed !== 1 ? 's' : ''}</span>
+                        )}
+                        {r.insertions != null && (
+                          <span className="text-emerald-400">+{r.insertions}</span>
+                        )}
+                        {r.deletions != null && (
+                          <span className="text-red-400">-{r.deletions}</span>
+                        )}
+                        <span>{new Date(r.created_at).toLocaleString(locale)}</span>
+                      </div>
+                    </div>
+
+                    {/* Summary */}
+                    {r.summary && (
+                      <p className="text-sm text-koda-text">{r.summary}</p>
+                    )}
+
+                    {/* Full review */}
+                    {r.review_text && (
+                      <details className="group">
+                        <summary className="cursor-pointer text-xs text-koda-accent hover:underline select-none">
+                          Voir la review complète
+                        </summary>
+                        <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-koda-bg p-3 text-xs text-koda-text leading-relaxed overflow-x-auto max-h-[500px] overflow-y-auto">
+                          {r.review_text}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

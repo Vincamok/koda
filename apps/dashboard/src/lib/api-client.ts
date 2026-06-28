@@ -8,6 +8,7 @@ import type {
   Pipeline,
   PipelineRun,
   JobRun,
+  DiffReview,
   AutomationTrigger,
   IncomingWebhookEvent,
   SecurityReport,
@@ -226,6 +227,12 @@ export function listPipelineRuns(orgId: string, workspaceId: string, pipelineId:
 export function listWorkspaceActivity(orgId: string, workspaceId: string): Promise<AuditEvent[]> {
   return get<AuditEvent[]>(
     `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/activity`,
+  )
+}
+
+export function listDiffReviews(orgId: string, workspaceId: string): Promise<DiffReview[]> {
+  return get<DiffReview[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/diff-reviews`,
   )
 }
 

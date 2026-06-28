@@ -171,7 +171,7 @@ Pipelines de vérification automatisés, webhooks, triggers.
   - [x] `image_scan` : container éphémère bollard + Trivy (resource limits, labels koda, cleanup)
   - [x] Dashboard : rapport sécurité + findings par workspace
   - [x] Blocage phase Revue si `SecurityPolicy.min_severity_to_block` atteint → workspace → `reviewing`
-- [ ] Pipeline IA : review automatique de diff avant étape Revue
+- [x] Pipeline IA : review automatique de diff avant étape Revue (`diff_review` pipeline — LLM Anthropic, git2, table `diff_reviews`)
 - [x] Dead-letter stream : jobs échoués après 3 tentatives (`koda:jobs:pipeline:dead`)
 - [x] Workspace Activity Feed (dashboard) — `GET .../workspaces/{id}/activity` sur `audit_events`
 

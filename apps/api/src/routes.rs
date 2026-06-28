@@ -95,6 +95,8 @@ where
         // Workspace snapshots
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", get(workspaces::get_workspace_snapshots))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", post(workspaces::post_workspace_snapshot))
+        // Diff reviews (Pipeline IA)
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/diff-reviews", get(pipelines::get_diff_reviews))
         // Workspace activity feed
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/activity", get(pipelines::get_workspace_activity))
         // Workspace real-time events (SSE)

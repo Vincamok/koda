@@ -247,7 +247,7 @@ export interface AuditEvent {
 
 // ── CI/CD Pipelines ───────────────────────────────────────────────────────────
 
-export type PipelineType = 'build' | 'lint' | 'secret_scan' | 'sast' | 'dependency_scan' | 'image_scan'
+export type PipelineType = 'build' | 'lint' | 'secret_scan' | 'sast' | 'dependency_scan' | 'image_scan' | 'diff_review'
 export type PipelineStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
 export type TriggerType = 'on_push' | 'schedule' | 'manual'
 
@@ -299,6 +299,22 @@ export interface JobRun {
   attempts: number
   created_at: string
   updated_at: string
+}
+
+export interface DiffReview {
+  id: string
+  workspace_id: string
+  organization_id: string
+  pipeline_id: string | null
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  summary: string | null
+  review_text: string | null
+  files_changed: number | null
+  insertions: number | null
+  deletions: number | null
+  base_ref: string | null
+  head_ref: string | null
+  created_at: string
 }
 
 // ── Multi-instance ────────────────────────────────────────────────────────────

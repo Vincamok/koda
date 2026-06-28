@@ -66,7 +66,7 @@ pub async fn post_pipeline(
     Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<CreatePipelineRequest>,
 ) -> Result<Json<PipelineResponse>, AppError> {
-    let valid_types = ["build", "lint", "secret_scan", "sast", "dependency_scan", "image_scan"];
+    let valid_types = ["build", "lint", "secret_scan", "sast", "dependency_scan", "image_scan", "diff_review"];
     if !valid_types.contains(&body.pipeline_type.as_str()) {
         return Err(AppError::Validation(format!(
             "invalid pipeline_type: {}",
@@ -862,6 +862,84 @@ pub async fn get_security_reports(
     }
 
     Ok(Json(result))
+}
+
+// ── Diff Reviews ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct DiffReviewResponse {
+    pub id: Uuid,
+    pub workspace_id: Uuid,
+    pub organization_id: Uuid,
+    pub pipeline_id: Option<Uuid>,
+    pub status: String,
+    pub summary: Option<String>,
+    pub review_text: Option<String>,
+    pub files_changed: Option<i32>,
+    pub insertions: Option<i32>,
+    pub deletions: Option<i32>,
+    pub base_ref: Option<String>,
+    pub head_ref: Option<String>,
+    pub created_at: time::OffsetDateTime,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/diff-reviews",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "AI diff reviews", body = Vec<DiffReviewResponse>),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
+pub async fn get_diff_reviews(
+    State(pool): State<PgPool>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<PaginationQuery>,
+) -> Result<Json<Vec<DiffReviewResponse>>, AppError> {
+    let limit = q.limit.unwrap_or(20).min(100);
+    let offset = q.offset.unwrap_or(0);
+
+    let rows = sqlx::query!(
+        r#"SELECT id, workspace_id, organization_id, pipeline_id, status,
+                  summary, review_text, files_changed, insertions, deletions,
+                  base_ref, head_ref, created_at
+           FROM diff_reviews
+           WHERE workspace_id = $1 AND organization_id = $2
+           ORDER BY created_at DESC
+           LIMIT $3 OFFSET $4"#,
+        workspace_id,
+        org.id,
+        limit,
+        offset,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| DiffReviewResponse {
+                id: r.id,
+                workspace_id: r.workspace_id,
+                organization_id: r.organization_id,
+                pipeline_id: r.pipeline_id,
+                status: r.status,
+                summary: r.summary,
+                review_text: r.review_text,
+                files_changed: r.files_changed,
+                insertions: r.insertions,
+                deletions: r.deletions,
+                base_ref: r.base_ref,
+                head_ref: r.head_ref,
+                created_at: r.created_at,
+            })
+            .collect(),
+    ))
 }
 
 // ── Workspace Activity Feed ───────────────────────────────────────────────────
