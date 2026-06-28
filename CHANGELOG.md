@@ -9,6 +9,14 @@
 
 ---
 
+## [1.1.1] — 2026-06-28 · Fix build OOM Next.js
+
+### Fixed
+- Dockerfiles dashboard, admin, web-client : `npm ci` + build + `rm -rf node_modules` en un seul RUN → Kaniko ne snapshote plus les 440 packages de node_modules (résout OOM)
+- `apps/dashboard/next.config.js` : ajout `output: 'standalone'` (prérequis pour que le standalone bundle fonctionne sans node_modules)
+
+---
+
 ## [1.1.0] — 2026-06-28 · Backlog post-v1.0.0 — Batch 2
 
 ### Added
