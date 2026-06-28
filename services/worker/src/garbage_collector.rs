@@ -51,7 +51,7 @@ impl GarbageCollector {
             r#"SELECT wv.id, wv.volume_name
                FROM workspace_volumes wv
                LEFT JOIN workspaces w ON w.id = wv.workspace_id
-               WHERE (w.id IS NULL OR w.deleted_at IS NOT NULL)
+               WHERE (w.id IS NULL OR w.status = 'closed')
                  AND wv.status != 'deleted'
                  AND wv.updated_at < NOW() - ($1 || ' hours')::INTERVAL"#,
         )

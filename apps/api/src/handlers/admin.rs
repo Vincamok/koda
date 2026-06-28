@@ -54,7 +54,7 @@ pub async fn admin_list_orgs(
                   COUNT(DISTINCT w.id) AS workspace_count
            FROM organizations o
            LEFT JOIN memberships m ON m.organization_id = o.id
-           LEFT JOIN workspaces w ON w.organization_id = o.id AND w.deleted_at IS NULL
+           LEFT JOIN workspaces w ON w.organization_id = o.id AND w.status != 'closed'
            WHERE ($1::TEXT IS NULL OR o.name ILIKE '%' || $1 || '%' OR o.slug ILIKE '%' || $1 || '%')
            GROUP BY o.id
            ORDER BY o.created_at DESC
@@ -356,8 +356,8 @@ pub async fn admin_infra_stats(
         r#"SELECT
                (SELECT COUNT(*) FROM organizations) AS total_orgs,
                (SELECT COUNT(*) FROM users) AS total_users,
-               (SELECT COUNT(*) FROM workspaces WHERE deleted_at IS NULL) AS total_workspaces,
-               (SELECT COUNT(*) FROM workspaces WHERE status = 'running' AND deleted_at IS NULL) AS running_workspaces,
+               (SELECT COUNT(*) FROM workspaces WHERE status != 'closed') AS total_workspaces,
+               (SELECT COUNT(*) FROM workspaces WHERE status = 'running') AS running_workspaces,
                (SELECT COUNT(*) FROM cicd_pipelines) AS total_pipelines,
                (SELECT COUNT(*) FROM jobs WHERE status = 'failed') AS failed_jobs"#
     )

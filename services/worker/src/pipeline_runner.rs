@@ -1,12 +1,24 @@
 use anyhow::Context;
+use bollard::{
+    container::{
+        Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions,
+        StartContainerOptions, WaitContainerOptions,
+    },
+    models::{HostConfig, Resources},
+    Docker,
+};
+use futures::StreamExt;
 use redis::{aio::MultiplexedConnection, AsyncCommands};
 use serde::Deserialize;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 const STREAM: &str = "koda:jobs:pipeline";
 const DEAD_LETTER: &str = "koda:jobs:pipeline:dead";
 const MAX_RETRIES: u8 = 3;
+const SAST_MAX_FILE_BYTES: u64 = 64 * 1024; // 64 KB per file
+const SAST_MAX_FILES: usize = 20;
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -24,6 +36,9 @@ pub struct PipelineRunner {
     pub redis: MultiplexedConnection,
     pub group: String,
     pub consumer: String,
+    pub http: reqwest::Client,
+    pub docker_host: String,
+    pub anthropic_api_key: Option<String>,
 }
 
 impl PipelineRunner {
@@ -39,7 +54,7 @@ impl PipelineRunner {
         self.init().await?;
         tracing::info!(group = %self.group, "pipeline runner started");
 
-        let mut failure_counts: std::collections::HashMap<String, u8> = std::collections::HashMap::new();
+        let mut failure_counts: HashMap<String, u8> = HashMap::new();
 
         loop {
             let entries: redis::streams::StreamReadReply = self
@@ -119,7 +134,6 @@ impl PipelineRunner {
         org_id: Uuid,
         trigger: String,
     ) -> anyhow::Result<()> {
-        // Fetch pipeline config
         let pipeline = sqlx::query!(
             "SELECT id, pipeline_type, config FROM cicd_pipelines WHERE id = $1",
             pipeline_id,
@@ -127,7 +141,6 @@ impl PipelineRunner {
         .fetch_one(&self.pool)
         .await?;
 
-        // Mark job as running
         let job = sqlx::query!(
             r#"INSERT INTO jobs (job_type, payload, status, attempts)
                VALUES ('pipeline', $1, 'running', 1)
@@ -141,6 +154,19 @@ impl PipelineRunner {
         )
         .fetch_one(&self.pool)
         .await?;
+
+        // Create ephemeral pipeline branch if workspace repo is available
+        let branch_name = format!(
+            "pipeline/{}/{}",
+            &workspace_id.to_string()[..8],
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs())
+                .unwrap_or(0)
+        );
+        if let Err(e) = self.create_ephemeral_branch(workspace_id, &branch_name).await {
+            tracing::debug!(error = %e, "ephemeral branch skipped (no repo yet)");
+        }
 
         tracing::info!(
             job_id = %job.id,
@@ -173,6 +199,13 @@ impl PipelineRunner {
                 )
                 .execute(&self.pool)
                 .await?;
+
+                // Enforce SecurityPolicy — block workspace if critical findings exist
+                if let Some(rid) = report_id {
+                    if let Err(e) = self.enforce_security_policy(workspace_id, org_id, rid).await {
+                        tracing::warn!(error = %e, "security policy enforcement error");
+                    }
+                }
             }
             Err(e) => {
                 sqlx::query!(
@@ -219,12 +252,104 @@ impl PipelineRunner {
                 Ok(Some(report_id))
             }
             "build" | "lint" | "image_scan" => {
-                // These run in ephemeral containers
                 self.run_container_pipeline(pipeline_type, pipeline_id, workspace_id, config).await?;
                 Ok(None)
             }
             _ => Err(anyhow::anyhow!("unknown pipeline type: {}", pipeline_type)),
         }
+    }
+
+    // ── Ephemeral pipeline branch ──────────────────────────────────────────────
+
+    async fn create_ephemeral_branch(
+        &self,
+        workspace_id: Uuid,
+        branch_name: &str,
+    ) -> anyhow::Result<()> {
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let Some(volume_name) = volume_name else {
+            anyhow::bail!("no volume for workspace {workspace_id}");
+        };
+
+        let repo_path = format!("/var/lib/docker/volumes/{}", volume_name);
+        let repo = git2::Repository::open(&repo_path)
+            .with_context(|| format!("open git repo at {repo_path}"))?;
+
+        let head = repo.head().context("get HEAD")?;
+        let commit = head.peel_to_commit().context("peel HEAD to commit")?;
+        repo.branch(branch_name, &commit, false)
+            .with_context(|| format!("create branch {branch_name}"))?;
+
+        tracing::info!(branch = %branch_name, workspace_id = %workspace_id, "ephemeral pipeline branch created");
+        Ok(())
+    }
+
+    // ── Security Policy Enforcement ────────────────────────────────────────────
+
+    async fn enforce_security_policy(
+        &self,
+        workspace_id: Uuid,
+        org_id: Uuid,
+        report_id: Uuid,
+    ) -> anyhow::Result<()> {
+        let policy = sqlx::query!(
+            "SELECT min_severity_to_block FROM security_policies WHERE organization_id = $1",
+            org_id,
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let min_severity = policy
+            .map(|p| p.min_severity_to_block)
+            .unwrap_or_else(|| "critical".to_string());
+
+        if min_severity == "none" {
+            return Ok(());
+        }
+
+        let severity_rank = |s: &str| match s {
+            "critical" => 4,
+            "high" => 3,
+            "medium" => 2,
+            "low" => 1,
+            _ => 0,
+        };
+        let threshold = severity_rank(&min_severity);
+
+        let findings = sqlx::query!(
+            "SELECT severity FROM vulnerability_findings WHERE security_report_id = $1",
+            report_id,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        let blocking = findings
+            .iter()
+            .any(|f| severity_rank(&f.severity) >= threshold);
+
+        if blocking {
+            sqlx::query!(
+                "UPDATE workspaces SET status = 'reviewing', updated_at = NOW() WHERE id = $1 AND status NOT IN ('closed', 'stopped', 'stopping')",
+                workspace_id,
+            )
+            .execute(&self.pool)
+            .await?;
+
+            tracing::warn!(
+                workspace_id = %workspace_id,
+                report_id = %report_id,
+                min_severity = %min_severity,
+                "workspace blocked by security policy"
+            );
+        }
+
+        Ok(())
     }
 
     // ── Secret Scan ────────────────────────────────────────────────────────────
@@ -247,7 +372,6 @@ impl PipelineRunner {
         .fetch_one(&self.pool)
         .await?;
 
-        // Fetch active scan rules (builtin + org-level)
         let rules = sqlx::query!(
             r#"SELECT id, name, rule_type, pattern, entropy_threshold, severity
                FROM scan_rules
@@ -257,7 +381,6 @@ impl PipelineRunner {
         .fetch_all(&self.pool)
         .await?;
 
-        // Get workspace volume path from DB
         let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
             "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
         )
@@ -265,19 +388,17 @@ impl PipelineRunner {
         .fetch_optional(&self.pool)
         .await?;
 
-        let volume_path = volume_name
+        let scan_path = volume_name
             .map(|n| format!("/var/lib/docker/volumes/{}", n))
             .unwrap_or_else(|| "/tmp/workspace_scan".to_string());
-        let scan_path = volume_path.as_str();
 
         let mut findings: Vec<(String, String, String, Option<String>, Option<String>, Option<i32>, Option<String>)> = Vec::new();
 
-        // Apply regex rules to files in volume
         for rule in &rules {
             if rule.rule_type == "regex" {
                 if let Some(pattern) = &rule.pattern {
                     if let Ok(re) = regex::Regex::new(pattern) {
-                        if let Ok(entries) = scan_files_in_path(scan_path, &re) {
+                        if let Ok(entries) = scan_files_in_path(&scan_path, &re) {
                             for (file, line, evidence) in entries {
                                 findings.push((
                                     rule.name.clone(),
@@ -294,11 +415,11 @@ impl PipelineRunner {
                 }
             } else if rule.rule_type == "entropy" {
                 let threshold = rule.entropy_threshold.unwrap_or(4.5);
-                if let Ok(entries) = scan_high_entropy_strings(scan_path, threshold) {
+                if let Ok(entries) = scan_high_entropy_strings(&scan_path, threshold) {
                     for (file, line, evidence) in entries {
                         findings.push((
                             rule.name.clone(),
-                            format!("High-entropy string (possible secret) found"),
+                            "High-entropy string (possible secret) found".to_string(),
                             rule.severity.clone(),
                             Some(rule.id.to_string()),
                             Some(file),
@@ -310,7 +431,6 @@ impl PipelineRunner {
             }
         }
 
-        // Persist findings
         for (title, description, severity, rule_id, file_path, line_number, evidence) in &findings {
             sqlx::query!(
                 r#"INSERT INTO vulnerability_findings
@@ -329,11 +449,7 @@ impl PipelineRunner {
             .await?;
         }
 
-        let summary = format!(
-            "Secret scan completed. {} finding(s) found.",
-            findings.len()
-        );
-
+        let summary = format!("Secret scan completed. {} finding(s) found.", findings.len());
         sqlx::query!(
             "UPDATE security_reports SET status = 'completed', summary = $1, updated_at = NOW() WHERE id = $2",
             summary,
@@ -342,12 +458,7 @@ impl PipelineRunner {
         .execute(&self.pool)
         .await?;
 
-        tracing::info!(
-            report_id = %report.id,
-            findings = findings.len(),
-            "secret scan completed"
-        );
-
+        tracing::info!(report_id = %report.id, findings = findings.len(), "secret scan completed");
         Ok(report.id)
     }
 
@@ -371,33 +482,30 @@ impl PipelineRunner {
         .fetch_one(&self.pool)
         .await?;
 
-        let volume_name2: Option<String> = sqlx::query_scalar::<_, String>(
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
             "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
         )
         .bind(workspace_id)
         .fetch_optional(&self.pool)
         .await?;
 
-        let volume_path = volume_name2
+        let scan_path = volume_name
             .map(|n| format!("/var/lib/docker/volumes/{}", n))
             .unwrap_or_else(|| "/tmp/workspace_scan".to_string());
-        let scan_path = volume_path.as_str();
 
         let mut findings = Vec::new();
 
-        // Run cargo audit if Cargo.lock present
-        let cargo_lock = std::path::Path::new(scan_path).join("Cargo.lock");
+        let cargo_lock = std::path::Path::new(&scan_path).join("Cargo.lock");
         if cargo_lock.exists() {
-            match run_cargo_audit(scan_path) {
+            match run_cargo_audit(&scan_path) {
                 Ok(vulns) => findings.extend(vulns),
                 Err(e) => tracing::warn!(error = %e, "cargo audit failed"),
             }
         }
 
-        // Run npm audit if package-lock.json present
-        let package_lock = std::path::Path::new(scan_path).join("package-lock.json");
+        let package_lock = std::path::Path::new(&scan_path).join("package-lock.json");
         if package_lock.exists() {
-            match run_npm_audit(scan_path) {
+            match run_npm_audit(&scan_path) {
                 Ok(vulns) => findings.extend(vulns),
                 Err(e) => tracing::warn!(error = %e, "npm audit failed"),
             }
@@ -419,7 +527,6 @@ impl PipelineRunner {
         }
 
         let summary = format!("Dependency scan completed. {} vulnerability finding(s).", findings.len());
-
         sqlx::query!(
             "UPDATE security_reports SET status = 'completed', summary = $1, updated_at = NOW() WHERE id = $2",
             summary,
@@ -431,7 +538,7 @@ impl PipelineRunner {
         Ok(report.id)
     }
 
-    // ── SAST (LLM-based OWASP scan) ───────────────────────────────────────────
+    // ── SAST — LLM-based OWASP Top 10 analysis ────────────────────────────────
 
     async fn run_sast(
         &self,
@@ -451,16 +558,164 @@ impl PipelineRunner {
         .fetch_one(&self.pool)
         .await?;
 
-        let summary = "SAST scan queued — LLM-based OWASP analysis pending.".to_string();
+        let api_key = match &self.anthropic_api_key {
+            Some(k) if !k.is_empty() => k.clone(),
+            _ => {
+                let summary = "SAST skipped — ANTHROPIC_API_KEY not configured.".to_string();
+                sqlx::query!(
+                    "UPDATE security_reports SET status = 'completed', summary = $1, updated_at = NOW() WHERE id = $2",
+                    summary, report.id,
+                )
+                .execute(&self.pool)
+                .await?;
+                return Ok(report.id);
+            }
+        };
 
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let scan_path = volume_name
+            .map(|n| format!("/var/lib/docker/volumes/{}", n))
+            .unwrap_or_else(|| "/tmp/workspace_scan".to_string());
+
+        // Collect source files for analysis (skip binary, skip huge files)
+        let code_snippets = collect_source_files_for_sast(&scan_path);
+
+        if code_snippets.is_empty() {
+            let summary = "SAST completed — no source files found to analyze.".to_string();
+            sqlx::query!(
+                "UPDATE security_reports SET status = 'completed', summary = $1, updated_at = NOW() WHERE id = $2",
+                summary, report.id,
+            )
+            .execute(&self.pool)
+            .await?;
+            return Ok(report.id);
+        }
+
+        let code_context = code_snippets
+            .iter()
+            .map(|(path, content)| format!("=== {} ===\n{}", path, content))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+
+        let prompt = format!(
+            r#"You are a security expert performing a static analysis security test (SAST) focused on OWASP Top 10 vulnerabilities.
+
+Analyze the following source code and identify security vulnerabilities. For each finding, provide:
+- title: short name of the vulnerability
+- severity: one of "critical", "high", "medium", "low", "info"
+- description: detailed explanation of the issue
+- file: the file path where the issue was found
+- line: line number (approximate is fine, use 0 if unknown)
+- remediation: how to fix the issue
+
+Focus on:
+- A01: Broken Access Control
+- A02: Cryptographic Failures
+- A03: Injection (SQL, XSS, command injection)
+- A04: Insecure Design
+- A05: Security Misconfiguration
+- A06: Vulnerable and Outdated Components
+- A07: Identification and Authentication Failures
+- A08: Software and Data Integrity Failures
+- A09: Security Logging and Monitoring Failures
+- A10: Server-Side Request Forgery (SSRF)
+
+Respond ONLY with valid JSON in this exact format:
+{{"findings": [{{"title": "...", "severity": "...", "description": "...", "file": "...", "line": 0, "remediation": "..."}}]}}
+
+Source code to analyze:
+{}
+"#,
+            code_context
+        );
+
+        let response = self
+            .http
+            .post("https://api.anthropic.com/v1/messages")
+            .header("x-api-key", &api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("content-type", "application/json")
+            .json(&serde_json::json!({
+                "model": "claude-haiku-4-5-20251001",
+                "max_tokens": 4096,
+                "messages": [{"role": "user", "content": prompt}]
+            }))
+            .send()
+            .await
+            .context("anthropic API request")?;
+
+        let status = response.status();
+        let body: serde_json::Value = response.json().await.context("parse anthropic response")?;
+
+        if !status.is_success() {
+            anyhow::bail!("anthropic API error {}: {:?}", status, body);
+        }
+
+        let llm_text = body
+            .pointer("/content/0/text")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+
+        let findings_json: serde_json::Value = serde_json::from_str(llm_text)
+            .unwrap_or_else(|_| {
+                // Try to extract JSON from the text if it contains extra content
+                extract_json_from_text(llm_text)
+                    .unwrap_or(serde_json::json!({"findings": []}))
+            });
+
+        let findings = findings_json
+            .get("findings")
+            .and_then(|f| f.as_array())
+            .cloned()
+            .unwrap_or_default();
+
+        let mut saved = 0usize;
+        for f in &findings {
+            let title = f.get("title").and_then(|v| v.as_str()).unwrap_or("Unknown").to_string();
+            let severity = f.get("severity").and_then(|v| v.as_str()).unwrap_or("info").to_string();
+            let description = f.get("description").and_then(|v| v.as_str()).map(str::to_string);
+            let file_path = f.get("file").and_then(|v| v.as_str()).map(str::to_string);
+            let line_number = f.get("line").and_then(|v| v.as_i64()).map(|n| n as i32);
+            let remediation = f.get("remediation").and_then(|v| v.as_str()).map(str::to_string);
+
+            let valid_severities = ["critical", "high", "medium", "low", "info"];
+            let severity = if valid_severities.contains(&severity.as_str()) { severity } else { "info".to_string() };
+
+            sqlx::query!(
+                r#"INSERT INTO vulnerability_findings
+                       (security_report_id, title, description, severity, file_path, line_number, remediation)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7)"#,
+                report.id,
+                title,
+                description,
+                severity,
+                file_path.as_deref(),
+                line_number,
+                remediation.as_deref(),
+            )
+            .execute(&self.pool)
+            .await?;
+            saved += 1;
+        }
+
+        let summary = format!(
+            "SAST completed. {} finding(s) identified via LLM-based OWASP Top 10 analysis.",
+            saved
+        );
         sqlx::query!(
             "UPDATE security_reports SET status = 'completed', summary = $1, updated_at = NOW() WHERE id = $2",
-            summary,
-            report.id,
+            summary, report.id,
         )
         .execute(&self.pool)
         .await?;
 
+        tracing::info!(report_id = %report.id, findings = saved, "SAST completed");
         Ok(report.id)
     }
 
@@ -476,12 +731,14 @@ impl PipelineRunner {
         let image = config
             .get("image")
             .and_then(|v| v.as_str())
-            .unwrap_or(default_image_for(pipeline_type));
+            .unwrap_or(default_image_for(pipeline_type))
+            .to_string();
 
         let command = config
             .get("command")
             .and_then(|v| v.as_str())
-            .unwrap_or(default_command_for(pipeline_type));
+            .unwrap_or(default_command_for(pipeline_type))
+            .to_string();
 
         let container_name = format!(
             "koda-pipeline-{}-{}",
@@ -489,25 +746,177 @@ impl PipelineRunner {
             &pipeline_id.to_string()[..8]
         );
 
-        tracing::info!(
-            container = %container_name,
-            image = %image,
-            command = %command,
-            pipeline_type = %pipeline_type,
-            "running container pipeline"
+        let docker = Docker::connect_with_http(
+            &self.docker_host,
+            120,
+            bollard::API_DEFAULT_VERSION,
+        )
+        .context("connect to docker-socket-proxy")?;
+
+        let mut labels = HashMap::new();
+        labels.insert("koda.managed", "true");
+        labels.insert("koda.type", "pipeline");
+        let workspace_id_str = workspace_id.to_string();
+        let pipeline_id_str = pipeline_id.to_string();
+        labels.insert("koda.workspace_id", &workspace_id_str);
+        labels.insert("koda.pipeline_id", &pipeline_id_str);
+
+        // Get workspace volume for mounting source code
+        let volume_name: Option<String> = sqlx::query_scalar::<_, String>(
+            "SELECT volume_name FROM workspace_volumes WHERE workspace_id = $1 LIMIT 1",
+        )
+        .bind(workspace_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let binds = volume_name.map(|vn| vec![format!("{}:/workspace:ro", vn)]);
+
+        docker
+            .create_container(
+                Some(CreateContainerOptions {
+                    name: &container_name,
+                    platform: None,
+                }),
+                Config {
+                    image: Some(image.as_str()),
+                    cmd: Some(vec!["/bin/sh", "-c", &command]),
+                    working_dir: Some("/workspace"),
+                    labels: Some(labels),
+                    host_config: Some(HostConfig {
+                        binds,
+                        resources: Some(Resources {
+                            nano_cpus: Some(1_000_000_000),
+                            memory: Some(512 * 1024 * 1024),
+                            pids_limit: Some(256),
+                            cpu_period: Some(100_000),
+                            cpu_quota: Some(100_000),
+                            ..Default::default()
+                        }),
+                        auto_remove: Some(false),
+                        network_mode: Some("none".to_string()),
+                        cap_drop: Some(vec!["ALL".to_string()]),
+                        security_opt: Some(vec!["no-new-privileges:true".to_string()]),
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .await
+            .context("create pipeline container")?;
+
+        docker
+            .start_container(&container_name, None::<StartContainerOptions<String>>)
+            .await
+            .context("start pipeline container")?;
+
+        // Wait for container to finish (timeout 10 min)
+        let mut wait_stream = docker.wait_container(
+            &container_name,
+            None::<WaitContainerOptions<String>>,
         );
 
-        // In a full implementation this uses bollard to create an ephemeral container.
-        // The container has resource limits and is removed on completion.
-        // For now we log the intent; the Docker socket is accessed via docker-socket-proxy.
+        let exit_status = tokio::time::timeout(
+            std::time::Duration::from_secs(600),
+            wait_stream.next(),
+        )
+        .await
+        .context("pipeline container timed out after 600s")?
+        .context("wait stream ended unexpectedly")?
+        .context("container wait error")?;
+
+        // Collect logs
+        let log_opts = LogsOptions::<String> {
+            stdout: true,
+            stderr: true,
+            tail: "100".to_string(),
+            ..Default::default()
+        };
+        let mut logs_stream = docker.logs(&container_name, Some(log_opts));
+        let mut log_lines = Vec::new();
+        while let Some(Ok(msg)) = logs_stream.next().await {
+            log_lines.push(msg.to_string());
+            if log_lines.len() >= 100 {
+                break;
+            }
+        }
+
+        // Remove container
+        docker
+            .remove_container(
+                &container_name,
+                Some(RemoveContainerOptions { force: true, ..Default::default() }),
+            )
+            .await
+            .ok();
+
+        if exit_status.status_code != 0 {
+            let logs = log_lines.join("");
+            anyhow::bail!(
+                "pipeline container '{}' exited with code {}. Logs:\n{}",
+                container_name,
+                exit_status.status_code,
+                &logs[..logs.len().min(2000)]
+            );
+        }
+
         tracing::info!(
-            pipeline_id = %pipeline_id,
-            workspace_id = %workspace_id,
-            container_name = %container_name,
-            "container pipeline execution stubbed (docker-socket-proxy required at runtime)"
+            container = %container_name,
+            pipeline_type = %pipeline_type,
+            exit_code = exit_status.status_code,
+            "container pipeline completed"
         );
 
         Ok(())
+    }
+}
+
+// ── SAST helpers ──────────────────────────────────────────────────────────────
+
+fn collect_source_files_for_sast(path: &str) -> Vec<(String, String)> {
+    let source_exts = [
+        "rs", "py", "ts", "tsx", "js", "jsx", "go", "java", "cs", "php",
+        "rb", "kt", "swift", "cpp", "c", "h", "sql",
+    ];
+
+    let mut files = Vec::new();
+    let walker = walkdir::WalkDir::new(path)
+        .follow_links(false)
+        .max_depth(10);
+
+    for entry in walker.into_iter().filter_map(|e| e.ok()) {
+        if files.len() >= SAST_MAX_FILES {
+            break;
+        }
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path_str = entry.path().to_string_lossy().to_string();
+        if should_skip_path(&path_str) {
+            continue;
+        }
+        let ext = entry.path().extension().and_then(|e| e.to_str()).unwrap_or("");
+        if !source_exts.contains(&ext) {
+            continue;
+        }
+        let metadata = entry.metadata().ok();
+        if metadata.map(|m| m.len()).unwrap_or(0) > SAST_MAX_FILE_BYTES {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(entry.path()) {
+            files.push((path_str, content));
+        }
+    }
+
+    files
+}
+
+fn extract_json_from_text(text: &str) -> Option<serde_json::Value> {
+    let start = text.find('{')?;
+    let end = text.rfind('}')?;
+    if end >= start {
+        serde_json::from_str(&text[start..=end]).ok()
+    } else {
+        None
     }
 }
 
@@ -713,7 +1122,7 @@ fn default_command_for(pipeline_type: &str) -> &'static str {
     match pipeline_type {
         "build" => "cargo build --release",
         "lint" => "cargo clippy -- -D warnings",
-        "image_scan" => "trivy image --exit-code 0 --severity HIGH,CRITICAL",
+        "image_scan" => "trivy image --exit-code 0 --severity HIGH,CRITICAL .",
         _ => "echo 'pipeline complete'",
     }
 }

@@ -7,6 +7,7 @@ import type {
   ApiError,
   Pipeline,
   PipelineRun,
+  JobRun,
   AutomationTrigger,
   IncomingWebhookEvent,
   SecurityReport,
@@ -213,6 +214,18 @@ export function listWebhookEvents(orgId: string, workspaceId: string): Promise<I
 export function listSecurityReports(orgId: string, workspaceId: string): Promise<SecurityReport[]> {
   return get<SecurityReport[]>(
     `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/security-reports`,
+  )
+}
+
+export function listPipelineRuns(orgId: string, workspaceId: string, pipelineId: string): Promise<JobRun[]> {
+  return get<JobRun[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/pipelines/${pipelineId}/runs`,
+  )
+}
+
+export function listWorkspaceActivity(orgId: string, workspaceId: string): Promise<AuditEvent[]> {
+  return get<AuditEvent[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/activity`,
   )
 }
 

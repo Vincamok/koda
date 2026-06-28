@@ -157,23 +157,23 @@ Pipelines de vérification automatisés, webhooks, triggers.
 - [x] Modèles DB : `CiCdPipeline`, `AutomationTrigger`, `IncomingWebhookEvent`
 - [x] Worker Rust : exécution pipeline dans container isolé éphémère (`pipeline_runner.rs`)
 - [x] Types de pipeline : `build`, `lint`, `security_scan`, `dependency_scan`, `image_scan`, `secret_scan`
-- [ ] Branches éphémères pipeline : `pipeline/<uid>/<timestamp>` (git2)
+- [x] Branches éphémères pipeline : `pipeline/<uid>/<timestamp>` (git2 — fallback gracieux si repo non cloné)
 - [x] Webhook entrant : vérification HMAC-SHA256 + stockage `IncomingWebhookEvent`
 - [x] Triggers : `on_push`, `schedule` (cron Rust — `cron_scheduler.rs`), `manual`
 - [x] API : endpoints pipelines + triggers + run
-- [ ] Dashboard : panneau pipelines + historique exécutions
+- [x] Dashboard : panneau pipelines + historique exécutions (`GET .../pipelines/{id}/runs`)
 - [x] Webhook Inbox par workspace (dashboard)
 - [x] **Sécurité intégrée dans les projets** :
   - [x] `SecurityReport`, `VulnerabilityFinding`, `SecurityPolicy`
   - [x] `secret_scan` : détection credentials (regex + entropie Shannon)
-  - [x] `sast` : LLM sécurité dédié (OWASP Top 10 par langage, severity scoring)
+  - [x] `sast` : LLM Anthropic (claude-haiku) OWASP Top 10 — findings parsés + sauvegardés en DB
   - [x] `dependency_scan` : cargo audit, npm audit, pip-audit
-  - [x] `image_scan` : Trivy/Grype sur images workspace avant lancement
+  - [x] `image_scan` : container éphémère bollard + Trivy (resource limits, labels koda, cleanup)
   - [x] Dashboard : rapport sécurité + findings par workspace
-  - [ ] Blocage phase Revue si `SecurityPolicy.min_severity_to_block` atteint
+  - [x] Blocage phase Revue si `SecurityPolicy.min_severity_to_block` atteint → workspace → `reviewing`
 - [ ] Pipeline IA : review automatique de diff avant étape Revue
 - [x] Dead-letter stream : jobs échoués après 3 tentatives (`koda:jobs:pipeline:dead`)
-- [ ] Workspace Activity Feed (dashboard)
+- [x] Workspace Activity Feed (dashboard) — `GET .../workspaces/{id}/activity` sur `audit_events`
 
 ### Critères de validation
 - Push Git → webhook → pipeline déclenché → résultat visible dans dashboard

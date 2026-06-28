@@ -10,6 +10,7 @@ pub struct WorkerConfig {
     pub plugin_probe_interval_seconds: u64,
     pub http_timeout_seconds: u64,
     pub docker_host: String,
+    pub anthropic_api_key: Option<String>,
 }
 
 impl WorkerConfig {

@@ -84,6 +84,7 @@ where
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/pipelines/:pipeline_id", get(pipelines::get_pipeline))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/pipelines/:pipeline_id", delete(pipelines::delete_pipeline))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/pipelines/:pipeline_id/run", post(pipelines::post_pipeline_run))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/pipelines/:pipeline_id/runs", get(pipelines::get_pipeline_runs))
         // Triggers
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/triggers", get(pipelines::get_triggers))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/triggers", post(pipelines::post_trigger))
@@ -94,6 +95,8 @@ where
         // Workspace snapshots
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", get(workspaces::get_workspace_snapshots))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", post(workspaces::post_workspace_snapshot))
+        // Workspace activity feed
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/activity", get(pipelines::get_workspace_activity))
         // Workspace real-time events (SSE)
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/events", get(workspaces::get_workspace_events))
         // Git

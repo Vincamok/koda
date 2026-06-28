@@ -13,6 +13,8 @@ import {
   AlertTriangle,
   Plus,
   ArrowLeft,
+  RefreshCw,
+  User,
 } from 'lucide-react'
 import { getSession } from '@/lib/auth'
 import {
@@ -20,13 +22,14 @@ import {
   runPipeline,
   listWebhookEvents,
   listSecurityReports,
+  listWorkspaceActivity,
 } from '@/lib/api-client'
 import { AppShell } from '@/components/layout/app-shell'
-import type { Pipeline, IncomingWebhookEvent, SecurityReport } from '@koda/shared-types'
+import type { Pipeline, IncomingWebhookEvent, SecurityReport, AuditEvent } from '@koda/shared-types'
 
 interface Props {
   params: { locale: string; id: string }
-  searchParams: { tab?: string }
+  searchParams: { tab?: string; pipeline?: string }
 }
 
 function PipelineStatusBadge({ status }: { status: string }) {
@@ -77,6 +80,17 @@ function SeverityBadge({ severity }: { severity: string }) {
   )
 }
 
+function JobStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { color: string; label: string }> = {
+    success: { color: 'text-emerald-400', label: '✓ success' },
+    failed: { color: 'text-red-400', label: '✗ failed' },
+    running: { color: 'text-blue-400', label: '⟳ running' },
+    pending: { color: 'text-yellow-400', label: '… pending' },
+  }
+  const s = map[status] ?? map['pending']
+  return <span className={`text-xs font-mono ${s.color}`}>{s.label}</span>
+}
+
 export default async function WorkspaceDetailPage({ params, searchParams }: Props) {
   const { locale, id } = params
   const tab = searchParams.tab ?? 'pipelines'
@@ -84,17 +98,18 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
   const user = await getSession()
   if (!user) redirect(`/${locale}/login`)
 
-  // We need org_id — for now derive from the workspace (TODO: persist org_id in session)
   const orgId = 'default'
 
   let pipelines: Pipeline[] = []
   let webhooks: IncomingWebhookEvent[] = []
   let reports: SecurityReport[] = []
+  let activity: AuditEvent[] = []
 
   try {
     if (tab === 'pipelines') pipelines = await listPipelines(orgId, id)
     if (tab === 'webhooks') webhooks = await listWebhookEvents(orgId, id)
     if (tab === 'security') reports = await listSecurityReports(orgId, id)
+    if (tab === 'activity') activity = await listWorkspaceActivity(orgId, id)
   } catch {
     // API unavailable — show empty states
   }
@@ -159,32 +174,39 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
             ) : (
               <div className="divide-y divide-koda-border rounded-xl border border-koda-border overflow-hidden">
                 {pipelines.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between bg-koda-surface px-4 py-3 hover:bg-koda-surface-hover transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <PipelineTypeTag type={p.pipeline_type} />
-                      <span className="text-sm font-medium text-koda-text">{p.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-koda-text-muted">
-                        {new Date(p.created_at).toLocaleDateString(locale)}
-                      </span>
-                      <form
-                        action={async () => {
-                          'use server'
-                          await runPipeline(orgId, id, p.id)
-                        }}
-                      >
-                        <button
-                          type="submit"
-                          className="inline-flex items-center gap-1.5 rounded-md bg-koda-accent/10 px-2.5 py-1 text-xs font-medium text-koda-accent hover:bg-koda-accent/20 transition-colors"
+                  <div key={p.id} className="bg-koda-surface">
+                    {/* Pipeline row */}
+                    <div className="flex items-center justify-between px-4 py-3 hover:bg-koda-surface-hover transition-colors">
+                      <div className="flex items-center gap-3">
+                        <PipelineTypeTag type={p.pipeline_type} />
+                        <span className="text-sm font-medium text-koda-text">{p.name}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-koda-text-muted">
+                          {new Date(p.created_at).toLocaleDateString(locale)}
+                        </span>
+                        <Link
+                          href={`/${locale}/workspaces/${id}?tab=pipelines&pipeline=${p.id}`}
+                          className="inline-flex items-center gap-1 text-xs text-koda-text-muted hover:text-koda-text transition-colors"
                         >
-                          <Play className="h-3 w-3" />
-                          Run
-                        </button>
-                      </form>
+                          <RefreshCw className="h-3 w-3" />
+                          Historique
+                        </Link>
+                        <form
+                          action={async () => {
+                            'use server'
+                            await runPipeline(orgId, id, p.id)
+                          }}
+                        >
+                          <button
+                            type="submit"
+                            className="inline-flex items-center gap-1.5 rounded-md bg-koda-accent/10 px-2.5 py-1 text-xs font-medium text-koda-accent hover:bg-koda-accent/20 transition-colors"
+                          >
+                            <Play className="h-3 w-3" />
+                            Run
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -197,6 +219,9 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
         {tab === 'webhooks' && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-koda-text">Événements Webhook</h3>
+            <p className="text-xs text-koda-text-muted">
+              Endpoint: <code className="rounded bg-koda-surface px-1 py-0.5 font-mono">POST /api/v1/webhooks/{id}</code>
+            </p>
 
             {webhooks.length === 0 ? (
               <EmptyState
@@ -280,7 +305,7 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
             <EmptyState
               icon={<GitBranch className="h-10 w-10 text-koda-text-muted" />}
               title="Diff viewer"
-              description="La visualisation des diffs sera disponible en Phase 3 (v0.4.0)."
+              description="Ouvrez le web-client pour voir le diff Git en temps réel depuis le panel Git de l'IDE."
             />
           </div>
         )}
@@ -289,11 +314,38 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
         {tab === 'activity' && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-koda-text">Activité</h3>
-            <EmptyState
-              icon={<Activity className="h-10 w-10 text-koda-text-muted" />}
-              title="Aucune activité récente"
-              description="Les actions sur ce workspace apparaîtront ici."
-            />
+
+            {activity.length === 0 ? (
+              <EmptyState
+                icon={<Activity className="h-10 w-10 text-koda-text-muted" />}
+                title="Aucune activité récente"
+                description="Les actions sur ce workspace (démarrage, arrêt, pipelines, snapshots) apparaîtront ici."
+              />
+            ) : (
+              <div className="divide-y divide-koda-border rounded-xl border border-koda-border overflow-hidden">
+                {activity.map((ev) => (
+                  <div
+                    key={ev.id}
+                    className="flex items-center gap-3 bg-koda-surface px-4 py-3"
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-koda-accent/10">
+                      <User className="h-3.5 w-3.5 text-koda-accent" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-koda-text">
+                        <span className="font-medium font-mono text-koda-accent">{ev.action}</span>
+                        {ev.resource_type && (
+                          <span className="text-koda-text-muted"> · {ev.resource_type}</span>
+                        )}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-xs text-koda-text-muted">
+                      {new Date(ev.created_at).toLocaleString(locale)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

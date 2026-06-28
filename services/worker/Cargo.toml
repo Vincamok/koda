@@ -25,3 +25,6 @@ reqwest = { workspace = true }
 regex = "1"
 walkdir = "2"
 time = { workspace = true }
+bollard = { version = "0.17", features = ["ssl"] }
+futures = "0.3"
+git2 = "0.19"

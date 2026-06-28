@@ -23,6 +23,20 @@
 - `McpPanel` : composant web-client avec liste connecteurs, activation/désactivation, suppression
 - Dashboard workspace : onglet « Diff » (stub Phase 3)
 - i18n exhaustive : messages `ide`, `mcp`, `git`, `personal` dans les 4 langues (FR/EN/ES/DE) — dashboard + web-client (`packages/i18n/messages/`)
+- **Phase 3 — correctifs et complétions** :
+  - Correction critique : `post_pipeline_run` publie maintenant dans le stream Redis `koda:jobs:pipeline` — le worker exécute effectivement les pipelines
+  - Correction critique : `enqueue_push_pipelines` publie dans Redis pour les triggers `on_push`
+  - Correction bug : `workspaces.deleted_at` inexistant remplacé par `status != 'closed'` dans tous les handlers (`post_webhook`, `get_webhook_events`, `admin.rs`, `garbage_collector.rs`)
+  - API historique d'exécution : `GET .../pipelines/{pipeline_id}/runs` — liste des jobs avec status/error/attempts
+  - API activité workspace : `GET .../workspaces/{workspace_id}/activity` — feed `audit_events` filtré par workspace
+  - Dashboard : onglet Activité avec feed réel, lien « Historique » par pipeline
+  - `run_sast` : implémentation réelle OWASP Top 10 via LLM Anthropic (claude-haiku) — findings parsés et sauvegardés en DB
+  - `run_container_pipeline` : implémentation bollard — container éphémère avec resource limits, labels koda, wait, collecte logs, cleanup
+  - `SecurityPolicy.min_severity_to_block` : enforcement post-pipeline — workspace passe en `reviewing` si seuil atteint
+  - Branches éphémères pipeline `pipeline/<uid>/<timestamp>` via git2 (fallback gracieux si pas de repo cloné)
+  - `WorkerConfig.anthropic_api_key` : nouveau champ optionnel pour le SAST LLM
+  - `PipelineRunner` : ajout `http`, `docker_host`, `anthropic_api_key` au struct
+  - `JobRun` type dans `@koda/shared-types`
 
 ---
 

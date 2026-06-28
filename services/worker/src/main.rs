@@ -48,11 +48,19 @@ async fn main() -> anyhow::Result<()> {
         interval: Duration::from_secs(config.plugin_probe_interval_seconds),
     };
 
+    let runner_http = reqwest::Client::builder()
+        .timeout(Duration::from_secs(120))
+        .user_agent("koda-worker/0.1")
+        .build()?;
+
     let mut runner = PipelineRunner {
         pool: pool.clone(),
         redis,
         group: config.consumer_group.clone(),
         consumer: config.consumer_name.clone(),
+        http: runner_http,
+        docker_host: config.docker_host.clone(),
+        anthropic_api_key: config.anthropic_api_key.clone(),
     };
 
     let cron = CronScheduler {

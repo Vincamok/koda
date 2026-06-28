@@ -292,6 +292,15 @@ export interface IncomingWebhookEvent {
   source_ip: string | null
 }
 
+export interface JobRun {
+  id: string
+  status: 'pending' | 'running' | 'success' | 'failed'
+  error: string | null
+  attempts: number
+  created_at: string
+  updated_at: string
+}
+
 // ── Multi-instance ────────────────────────────────────────────────────────────
 
 export interface KodaInstance {

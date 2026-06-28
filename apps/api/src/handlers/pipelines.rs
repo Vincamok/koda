@@ -3,6 +3,7 @@ use axum::{
     Json,
 };
 use hmac::{Hmac, Mac};
+use redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use sqlx::PgPool;
@@ -11,6 +12,7 @@ use uuid::Uuid;
 use crate::{
     error::AppError,
     middleware::auth::{AuthUser, OrgContext},
+    AppState,
 };
 
 // ── Pipeline CRUD ────────────────────────────────────────────────────────────
@@ -264,12 +266,13 @@ pub struct RunResponse {
     security(("session" = []))
 )]
 pub async fn post_pipeline_run(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Extension(org): Extension<OrgContext>,
     Extension(_user): Extension<AuthUser>,
     Path((_org_id, workspace_id, pipeline_id)): Path<(Uuid, Uuid, Uuid)>,
 ) -> Result<Json<RunResponse>, AppError> {
-    // Verify pipeline belongs to org/workspace
+    let pool = &state.pool;
+
     let pipeline = sqlx::query!(
         r#"SELECT id, pipeline_type, status FROM cicd_pipelines
            WHERE id = $1 AND workspace_id = $2 AND organization_id = $3"#,
@@ -277,7 +280,7 @@ pub async fn post_pipeline_run(
         workspace_id,
         org.id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await?
     .ok_or(AppError::NotFound)?;
 
@@ -285,7 +288,6 @@ pub async fn post_pipeline_run(
         return Err(AppError::Conflict("pipeline already running".into()));
     }
 
-    // Create job record
     let payload = serde_json::json!({
         "type": "run_pipeline",
         "pipeline_id": pipeline_id,
@@ -300,22 +302,104 @@ pub async fn post_pipeline_run(
            RETURNING id"#,
         payload,
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
 
-    // Update pipeline status to running
     sqlx::query!(
         "UPDATE cicd_pipelines SET status = 'running', last_run_at = NOW(), updated_at = NOW() WHERE id = $1",
         pipeline_id,
     )
-    .execute(&pool)
+    .execute(pool)
     .await?;
+
+    // Publish to Redis stream so the pipeline runner worker picks it up
+    let payload_str = serde_json::to_string(&payload)
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("serialize pipeline payload: {e}")))?;
+    let mut redis = state.redis.clone();
+    redis
+        .xadd("koda:jobs:pipeline", "*", &[("payload", payload_str.as_str())])
+        .await
+        .map_err(|e| AppError::Internal(anyhow::anyhow!("redis xadd pipeline: {e}")))?;
 
     Ok(Json(RunResponse {
         job_id: job.id,
         pipeline_id: pipeline.id,
         status: "running".into(),
     }))
+}
+
+// ── Pipeline Run History ──────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct JobResponse {
+    pub id: Uuid,
+    pub status: String,
+    pub error: Option<String>,
+    pub attempts: i32,
+    pub created_at: time::OffsetDateTime,
+    pub updated_at: time::OffsetDateTime,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/pipelines/{pipeline_id}/runs",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+        ("pipeline_id" = Uuid, Path, description = "Pipeline ID"),
+    ),
+    responses(
+        (status = 200, description = "Pipeline run history", body = Vec<JobResponse>),
+        (status = 404, description = "Not found"),
+    ),
+    tag = "pipelines",
+    security(("session" = []))
+)]
+pub async fn get_pipeline_runs(
+    State(pool): State<PgPool>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id, pipeline_id)): Path<(Uuid, Uuid, Uuid)>,
+    Query(q): Query<PaginationQuery>,
+) -> Result<Json<Vec<JobResponse>>, AppError> {
+    // Verify pipeline belongs to org/workspace
+    sqlx::query_scalar!(
+        "SELECT id FROM cicd_pipelines WHERE id = $1 AND workspace_id = $2 AND organization_id = $3",
+        pipeline_id,
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let limit = q.limit.unwrap_or(20).min(100);
+    let offset = q.offset.unwrap_or(0);
+
+    let rows = sqlx::query!(
+        r#"SELECT id, status, error, attempts, created_at, updated_at
+           FROM jobs
+           WHERE job_type = 'pipeline' AND payload->>'pipeline_id' = $1::text
+           ORDER BY created_at DESC
+           LIMIT $2 OFFSET $3"#,
+        pipeline_id.to_string(),
+        limit,
+        offset,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| JobResponse {
+                id: r.id,
+                status: r.status,
+                error: r.error,
+                attempts: r.attempts,
+                created_at: r.created_at,
+                updated_at: r.updated_at,
+            })
+            .collect(),
+    ))
 }
 
 // ── Automation Triggers ───────────────────────────────────────────────────────
@@ -373,7 +457,6 @@ pub async fn post_trigger(
         ));
     }
 
-    // Verify pipeline ownership
     let exists = sqlx::query_scalar!(
         "SELECT COUNT(*) FROM cicd_pipelines WHERE id = $1 AND workspace_id = $2 AND organization_id = $3",
         body.pipeline_id,
@@ -478,7 +561,7 @@ pub struct WebhookEventResponse {
     tag = "webhooks"
 )]
 pub async fn post_webhook(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(workspace_id): Path<Uuid>,
     headers: axum::http::HeaderMap,
     body: axum::body::Bytes,
@@ -489,23 +572,23 @@ pub async fn post_webhook(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
-    // Fetch workspace webhook secret
+    let pool = &state.pool;
+
+    // Workspace existence check — no deleted_at, use status != 'closed'
     let workspace = sqlx::query!(
-        "SELECT id, organization_id FROM workspaces WHERE id = $1 AND deleted_at IS NULL",
+        "SELECT id, organization_id FROM workspaces WHERE id = $1 AND status != 'closed'",
         workspace_id,
     )
-    .fetch_optional(&pool)
+    .fetch_optional(pool)
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Verify HMAC-SHA256 if signature provided
     let hmac_valid = if !sig_header.is_empty() {
-        // Workspace webhook_secret stored in config JSONB
         let secret_row: Option<String> = sqlx::query_scalar::<_, Option<String>>(
             "SELECT config->>'webhook_secret' FROM workspaces WHERE id = $1",
         )
         .bind(workspace_id)
-        .fetch_optional(&pool)
+        .fetch_optional(pool)
         .await?
         .flatten();
 
@@ -518,7 +601,6 @@ pub async fn post_webhook(
         false
     };
 
-    // Capture headers as JSON
     let headers_json: serde_json::Value = {
         let map: serde_json::Map<String, serde_json::Value> = headers
             .iter()
@@ -527,7 +609,6 @@ pub async fn post_webhook(
         serde_json::Value::Object(map)
     };
 
-    // Parse body as JSON, fallback to raw string
     let body_json: serde_json::Value =
         serde_json::from_slice(&body).unwrap_or_else(|_| serde_json::json!({"raw": String::from_utf8_lossy(&body).to_string()}));
 
@@ -542,12 +623,12 @@ pub async fn post_webhook(
         body_json,
         hmac_valid,
     )
-    .fetch_one(&pool)
+    .fetch_one(pool)
     .await?;
 
-    // If HMAC valid and workspace has on_push triggers, enqueue pipeline jobs
     if hmac_valid {
-        enqueue_push_pipelines(&pool, workspace_id, workspace.organization_id).await?;
+        let redis = state.redis.clone();
+        enqueue_push_pipelines(pool, redis, workspace_id, workspace.organization_id).await?;
     }
 
     Ok(Json(WebhookEventResponse {
@@ -585,6 +666,7 @@ fn constant_time_eq(a: &str, b: &str) -> bool {
 
 async fn enqueue_push_pipelines(
     pool: &PgPool,
+    mut redis: redis::aio::MultiplexedConnection,
     workspace_id: Uuid,
     org_id: Uuid,
 ) -> anyhow::Result<()> {
@@ -610,6 +692,12 @@ async fn enqueue_push_pipelines(
         )
         .execute(pool)
         .await?;
+
+        // Publish to Redis stream for the pipeline runner worker
+        let payload_str = serde_json::to_string(&payload)?;
+        redis
+            .xadd("koda:jobs:pipeline", "*", &[("payload", payload_str.as_str())])
+            .await?;
     }
     Ok(())
 }
@@ -636,9 +724,8 @@ pub async fn get_webhook_events(
     let limit = q.limit.unwrap_or(50).min(200);
     let offset = q.offset.unwrap_or(0);
 
-    // Verify workspace belongs to org
     sqlx::query_scalar!(
-        "SELECT id FROM workspaces WHERE id = $1 AND organization_id = $2 AND deleted_at IS NULL",
+        "SELECT id FROM workspaces WHERE id = $1 AND organization_id = $2 AND status != 'closed'",
         workspace_id,
         org.id,
     )
@@ -775,4 +862,71 @@ pub async fn get_security_reports(
     }
 
     Ok(Json(result))
+}
+
+// ── Workspace Activity Feed ───────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, utoipa::ToSchema)]
+pub struct ActivityEventResponse {
+    pub id: Uuid,
+    pub actor_id: Option<Uuid>,
+    pub action: String,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    #[schema(value_type = Object)]
+    pub metadata: serde_json::Value,
+    pub created_at: time::OffsetDateTime,
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/organizations/{org_id}/workspaces/{workspace_id}/activity",
+    params(
+        ("org_id" = Uuid, Path, description = "Organization ID"),
+        ("workspace_id" = Uuid, Path, description = "Workspace ID"),
+    ),
+    responses(
+        (status = 200, description = "Workspace activity feed", body = Vec<ActivityEventResponse>),
+    ),
+    tag = "workspaces",
+    security(("session" = []))
+)]
+pub async fn get_workspace_activity(
+    State(pool): State<PgPool>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+    Query(q): Query<PaginationQuery>,
+) -> Result<Json<Vec<ActivityEventResponse>>, AppError> {
+    let limit = q.limit.unwrap_or(50).min(200);
+    let offset = q.offset.unwrap_or(0);
+
+    let rows = sqlx::query!(
+        r#"SELECT id, actor_id, action, resource_type, resource_id, metadata, created_at
+           FROM audit_events
+           WHERE organization_id = $1
+             AND resource_type = 'workspace'
+             AND resource_id = $2::text
+           ORDER BY created_at DESC
+           LIMIT $3 OFFSET $4"#,
+        org.id,
+        workspace_id.to_string(),
+        limit,
+        offset,
+    )
+    .fetch_all(&pool)
+    .await?;
+
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| ActivityEventResponse {
+                id: r.id,
+                actor_id: r.actor_id,
+                action: r.action,
+                resource_type: r.resource_type,
+                resource_id: r.resource_id,
+                metadata: r.metadata,
+                created_at: r.created_at,
+            })
+            .collect(),
+    ))
 }
