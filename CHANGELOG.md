@@ -9,6 +9,15 @@
 
 ---
 
+## [1.1.4] — 2026-06-28 · Fix Rust edition2024 / indexmap 2.14 incompatibility
+
+### Fixed
+- `rust-toolchain.toml` : `channel = "stable"` → `channel = "1.88"` (version explicite, évite que rustup resolve une ancienne stable)
+- Tous les Dockerfiles Rust : suppression de `rust-toolchain.toml` du `COPY` — le build utilise directement le Rust 1.88 embarqué dans `rust:1.88-slim` sans passer par rustup
+- Tous les Dockerfiles Rust : ajout de `--locked` sur `cargo build --release` — garantit l'utilisation exacte du `Cargo.lock` commité et évite toute résolution imprévue de nouvelles versions (dont `indexmap 2.14.0` qui exige Rust ≥ 1.85 / edition2024)
+
+---
+
 ## [1.1.3] — 2026-06-28 · Fix dashboard next duplicate in npm workspace
 
 ### Fixed

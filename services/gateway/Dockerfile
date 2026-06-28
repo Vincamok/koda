@@ -4,7 +4,7 @@ ENV SQLX_OFFLINE=true
 WORKDIR /app
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
-COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+COPY Cargo.toml Cargo.lock ./
 COPY apps/api/Cargo.toml ./apps/api/
 COPY apps/cli/Cargo.toml ./apps/cli/
 COPY services/orchestrator/Cargo.toml ./services/orchestrator/
@@ -19,7 +19,7 @@ COPY .sqlx ./.sqlx
 
 RUN for crate in apps/cli services/orchestrator services/worker services/git-manager services/mcp-gateway; do \
     mkdir -p $crate/src && echo 'fn main(){}' > $crate/src/main.rs; done && \
-    cargo build --release --package koda-gateway && \
+    cargo build --release --locked --package koda-gateway && \
     cp target/release/koda-gateway /koda-gateway && \
     rm -rf target /usr/local/rustup /usr/local/cargo
 
