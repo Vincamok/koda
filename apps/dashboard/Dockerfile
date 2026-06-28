@@ -18,7 +18,6 @@ RUN npm ci && \
     npm run build --workspace=@koda/i18n 2>/dev/null || true && \
     npm run build --workspace=@koda/api-client 2>/dev/null || true && \
     cd apps/dashboard && npx next build && \
-    mkdir -p /app/apps/dashboard/public && \
     cd /app && rm -rf node_modules
 
 FROM node:20-alpine AS runner
@@ -26,7 +25,6 @@ ENV NODE_ENV=production PORT=3001
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 COPY --from=builder /app/apps/dashboard/.next/standalone ./
 COPY --from=builder /app/apps/dashboard/.next/static ./.next/static
-COPY --from=builder /app/apps/dashboard/public ./public
 USER nextjs
 EXPOSE 3001
 CMD ["node", "server.js"]
