@@ -19,7 +19,7 @@ RUN for crate in apps/cli services/orchestrator services/worker services/gateway
     mkdir -p $crate/src && echo 'fn main(){}' > $crate/src/main.rs; done && \
     cargo build --release --package koda-git-manager && \
     cp target/release/koda-git-manager /koda-git-manager && \
-    rm -rf target
+    rm -rf target /usr/local/rustup /usr/local/cargo
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates libssh2-1 git && rm -rf /var/lib/apt/lists/*

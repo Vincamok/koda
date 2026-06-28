@@ -19,7 +19,7 @@ RUN for crate in apps/cli services/orchestrator services/worker services/git-man
     mkdir -p $crate/src && echo 'fn main(){}' > $crate/src/main.rs; done && \
     cargo build --release --package koda-gateway && \
     cp target/release/koda-gateway /koda-gateway && \
-    rm -rf target
+    rm -rf target /usr/local/rustup /usr/local/cargo
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*

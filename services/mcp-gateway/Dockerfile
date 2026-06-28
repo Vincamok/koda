@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 COPY services/mcp-gateway ./
 RUN cargo build --release && \
     cp target/release/mcp-gateway /mcp-gateway && \
-    rm -rf target
+    rm -rf target /usr/local/rustup /usr/local/cargo
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
