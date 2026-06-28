@@ -1,0 +1,212 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-koda}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
+      POSTGRES_DB: ${POSTGRES_DB:-koda}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-koda}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  sozu:
+    image: sozu/sozu:latest
+    volumes:
+      - sozu_socket:/var/run/sozu
+      - ./infra/sozu/config.toml:/etc/sozu/config.toml:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - koda-platform
+
+  docker-socket-proxy:
+    image: ghcr.io/tecnativa/docker-socket-proxy:latest
+    environment:
+      CONTAINERS: 1
+      NETWORKS: 1
+      VOLUMES: 1
+      EXEC: 1
+      POST: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  api:
+    image: harness.vincz.fr/vincent/koda/api:latest
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+      LISTEN_ADDR: "0.0.0.0:8080"
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?SECRET_ENCRYPTION_KEY requis}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET requis}
+      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-127.0.0.1/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/api/v1/admin/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  orchestrator:
+    image: harness.vincz.fr/vincent/koda/orchestrator:latest
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY}
+    depends_on:
+      api:
+        condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  worker:
+    image: harness.vincz.fr/vincent/koda/worker:latest
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+      DOCKER_HOST: tcp://docker-socket-proxy:2375
+      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY}
+      LOKI_URL: ${LOKI_URL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    depends_on:
+      api:
+        condition: service_healthy
+      docker-socket-proxy:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  git-manager:
+    image: harness.vincz.fr/vincent/koda/git-manager:latest
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  gateway:
+    image: harness.vincz.fr/vincent/koda/gateway:latest
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+      SOZU_SOCKET: /var/run/sozu/koda.sock
+    volumes:
+      - sozu_socket:/var/run/sozu
+    depends_on:
+      api:
+        condition: service_healthy
+      sozu:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  mcp-gateway:
+    image: harness.vincz.fr/vincent/koda/mcp-gateway:latest
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
+      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  dashboard:
+    image: harness.vincz.fr/vincent/koda/dashboard:latest
+    environment:
+      NEXT_PUBLIC_API_URL: ${APP_BASE_URL:-http://localhost:8080}
+    ports:
+      - "3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  admin:
+    image: harness.vincz.fr/vincent/koda/admin:latest
+    environment:
+      NEXT_PUBLIC_API_URL: ${APP_BASE_URL:-http://localhost:8080}
+      API_URL: http://api:8080
+    ports:
+      - "3002:3002"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+  web-client:
+    image: harness.vincz.fr/vincent/koda/web-client:latest
+    environment:
+      NEXT_PUBLIC_API_URL: ${APP_BASE_URL:-http://localhost:8080}
+    ports:
+      - "3003:3003"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - koda-platform
+
+volumes:
+  postgres_data:
+  redis_data:
+  sozu_socket:
+
+networks:
+  koda-platform:
+    driver: bridge
+    name: koda-platform
