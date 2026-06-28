@@ -226,7 +226,7 @@ pub async fn post_workspace_ai_chat(
             let tools_doc = bindings
                 .into_iter()
                 .filter_map(|b| {
-                    let tools = b.connector_tools?;
+                    let tools = b.connector_tools;
                     if tools.as_array().map(|a| a.is_empty()).unwrap_or(true) {
                         return None;
                     }

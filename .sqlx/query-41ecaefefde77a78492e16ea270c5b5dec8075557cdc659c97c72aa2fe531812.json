@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE artifact_exports\n                       SET status = 'completed', s3_key = $2, s3_url = $3,\n                           size_bytes = $4, updated_at = NOW()\n                       WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "41ecaefefde77a78492e16ea270c5b5dec8075557cdc659c97c72aa2fe531812"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO security_reports (workspace_id, organization_id, pipeline_id, scan_type, status)\n               VALUES ($1, $2, $3, 'dependency_scan', 'running')\n               RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "00eb7481d00633d3a0853d228a6dadba3c932ddb066daf23bfba4f34f28eaacb"
+}

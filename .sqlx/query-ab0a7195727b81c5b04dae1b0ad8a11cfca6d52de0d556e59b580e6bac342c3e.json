@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE workspaces SET status = 'reviewing', updated_at = NOW() WHERE id = $1 AND status NOT IN ('closed', 'stopped', 'stopping')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ab0a7195727b81c5b04dae1b0ad8a11cfca6d52de0d556e59b580e6bac342c3e"
+}

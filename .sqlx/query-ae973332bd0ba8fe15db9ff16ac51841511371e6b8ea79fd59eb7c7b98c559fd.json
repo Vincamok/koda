@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FROM alert_events\n                   WHERE workspace_id = $1 AND message LIKE '%pipeline%fail%'\n                     AND created_at > NOW() - INTERVAL '2 hours'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ae973332bd0ba8fe15db9ff16ac51841511371e6b8ea79fd59eb7c7b98c559fd"
+}

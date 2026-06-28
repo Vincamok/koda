@@ -1,0 +1,61 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO automation_triggers (workspace_id, pipeline_id, trigger_type, schedule_cron)\n           VALUES ($1, $2, $3, $4)\n           RETURNING id, workspace_id, pipeline_id, trigger_type, schedule_cron, is_active, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "pipeline_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "trigger_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "schedule_cron",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "d3a4329f507aa56e5589d90cdebfbd0669d55e775d4a2a553e07944c05bbb07f"
+}

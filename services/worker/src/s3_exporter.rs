@@ -68,8 +68,8 @@ impl S3Exporter {
                             *count += 1;
                             tracing::error!(id = %id, attempt = *count, error = %e, "export job failed");
                             if *count >= MAX_RETRIES {
-                                let payload = message.map.get("payload").and_then(|v| {
-                                    if let redis::Value::BulkString(b) = v { Some(b.clone()) } else { None }
+                                let payload: Vec<u8> = message.map.get("payload").and_then(|v| {
+                                    if let redis::Value::Data(b) = v { Some(b.clone()) } else { None }
                                 }).unwrap_or_default();
                                 let _: Result<(), _> = self.redis.xadd(
                                     DEAD_LETTER, "*",
@@ -90,7 +90,7 @@ impl S3Exporter {
     async fn process(&mut self, msg: &redis::streams::StreamId) -> anyhow::Result<()> {
         use redis::Value;
         let payload = msg.map.get("payload")
-            .and_then(|v| if let Value::BulkString(b) = v { Some(b.clone()) } else { None })
+            .and_then(|v| if let Value::Data(b) = v { Some(b.clone()) } else { None })
             .ok_or_else(|| anyhow::anyhow!("missing payload"))?;
 
         let job: ExportJob = serde_json::from_slice(&payload)?;

@@ -1,0 +1,53 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, uid, cpu_limit, ram_limit_mb, pids_limit, created_by FROM workspaces WHERE id = $1 AND organization_id = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "cpu_limit",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 3,
+        "name": "ram_limit_mb",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "pids_limit",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_by",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "a8aca2fcf12412a6f1e36bf3e2b9790746b2059ef3ff57d920e47a23c319a2db"
+}

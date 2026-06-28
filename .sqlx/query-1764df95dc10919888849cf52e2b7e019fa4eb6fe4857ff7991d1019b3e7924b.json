@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT oia.organization_id, oia.instance_id, ki.name AS instance_name, ki.base_url AS instance_base_url\n           FROM org_instance_affinities oia\n           JOIN koda_instances ki ON ki.id = oia.instance_id\n           WHERE oia.organization_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "instance_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "instance_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "instance_base_url",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "1764df95dc10919888849cf52e2b7e019fa4eb6fe4857ff7991d1019b3e7924b"
+}

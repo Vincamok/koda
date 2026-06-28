@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE terminal_sessions SET status = 'closed', closed_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "10ac32c46dd64da1612dd3ef1729fe4265ce099658c02ddceda26aa15103b7c1"
+}

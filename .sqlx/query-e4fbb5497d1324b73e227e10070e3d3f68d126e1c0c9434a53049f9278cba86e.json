@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT at.pipeline_id FROM automation_triggers at\n           WHERE at.workspace_id = $1 AND at.trigger_type = 'on_push' AND at.is_active = true",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "pipeline_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e4fbb5497d1324b73e227e10070e3d3f68d126e1c0c9434a53049f9278cba86e"
+}

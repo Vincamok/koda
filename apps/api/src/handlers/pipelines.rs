@@ -316,7 +316,7 @@ pub async fn post_pipeline_run(
     let payload_str = serde_json::to_string(&payload)
         .map_err(|e| AppError::Internal(anyhow::anyhow!("serialize pipeline payload: {e}")))?;
     let mut redis = state.redis.clone();
-    redis
+    let _: String = redis
         .xadd("koda:jobs:pipeline", "*", &[("payload", payload_str.as_str())])
         .await
         .map_err(|e| AppError::Internal(anyhow::anyhow!("redis xadd pipeline: {e}")))?;
@@ -695,7 +695,7 @@ async fn enqueue_push_pipelines(
 
         // Publish to Redis stream for the pipeline runner worker
         let payload_str = serde_json::to_string(&payload)?;
-        redis
+        let _: String = redis
             .xadd("koda:jobs:pipeline", "*", &[("payload", payload_str.as_str())])
             .await?;
     }

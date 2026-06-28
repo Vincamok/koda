@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE cicd_pipelines SET status = 'failed', updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eef5dbc84a80b777ea19582411521c6ea76c179b532cf6f3c983e66e63ba5cc0"
+}

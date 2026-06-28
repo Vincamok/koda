@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.id, er.host_port\n        FROM workspaces w\n        JOIN memberships m ON m.organization_id = w.organization_id AND m.user_id = $2\n        LEFT JOIN exposure_rules er ON er.workspace_id = w.id AND er.rule_type = 'tcp' AND er.internal_port = 22\n        WHERE w.uid = $1 AND w.status != 'closed'\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "host_port",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "7bb3b17ac6135e4de1255c381cc8bb31272e9c37dd0302f06f36b4f6cb1d102d"
+}

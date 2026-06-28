@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT secret, verified FROM totp_credentials WHERE user_id = $1 AND verified = true",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "secret",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "verified",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "7ef2a76c5d1db2cde7dc3c5a60cf514082f888efe8214c52bf32ab5758d9492e"
+}

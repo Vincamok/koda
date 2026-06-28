@@ -244,7 +244,7 @@ fn is_allowed_personal_path(path: &str) -> bool {
     ALLOWED_PERSONAL_FILES.iter().any(|&p| clean == p)
 }
 
-#[derive(Debug, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
 pub struct PersonalFileResponse {
     pub path: String,
     pub content: String,

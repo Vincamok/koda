@@ -27,7 +27,7 @@ pub struct TicketResponse {
     pub priority: String,
     pub external_url: Option<String>,
     pub external_system: Option<String>,
-    pub created_by: Uuid,
+    pub created_by: Option<Uuid>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }

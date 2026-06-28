@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE security_policies SET min_severity_to_block = $1, updated_at = NOW() WHERE organization_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "17b302486a5bf1392a2a1bac9c04856959fd242fc2b6e176aab16383ddf73b56"
+}

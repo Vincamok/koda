@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_settings (user_id) VALUES ($1)\n                   ON CONFLICT (user_id) DO UPDATE SET updated_at = NOW()\n                   RETURNING user_id, locale, theme_id, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "locale",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "theme_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d4ce2f3352855e727d7531ffc16ba2ca55d1cd08303c2d881c9a44eab9c7b72f"
+}

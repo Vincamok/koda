@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT pd.id, pd.slug, pd.name, pd.description, pd.icon_url, pd.category,\n                  wpb.id AS binding_id, wpb.status, wpb.config, wpb.container_id\n           FROM workspace_plugin_bindings wpb\n           JOIN plugin_definitions pd ON pd.id = wpb.plugin_definition_id\n           WHERE wpb.workspace_id = $1\n           ORDER BY pd.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "icon_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "binding_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 7,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 9,
+        "name": "container_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "98c3a67da47d62769389c1e1fdea78efb5b647fe9d8ec543371b1249d2fd576f"
+}

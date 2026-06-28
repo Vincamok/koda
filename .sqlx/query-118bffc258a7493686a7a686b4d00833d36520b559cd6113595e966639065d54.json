@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT wmb.id, wmb.workspace_id, wmb.connector_definition_id,\n                  wmb.config, wmb.enabled,\n                  mcd.slug AS connector_slug, mcd.name AS connector_name\n           FROM workspace_mcp_bindings wmb\n           JOIN mcp_connector_definitions mcd ON mcd.id = wmb.connector_definition_id\n           WHERE wmb.workspace_id = $1\n           ORDER BY mcd.name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "connector_definition_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "enabled",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "connector_slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "connector_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "118bffc258a7493686a7a686b4d00833d36520b559cd6113595e966639065d54"
+}

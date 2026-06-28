@@ -4,7 +4,7 @@ use bollard::{container::StopContainerOptions, Docker};
 use sqlx::PgPool;
 
 const CHECK_INTERVAL_SECS: u64 = 120;
-const DEFAULT_IDLE_MINUTES: i64 = 30;
+const DEFAULT_IDLE_MINUTES: i32 = 30;
 
 pub struct HibernationWatcher {
     pub pool: PgPool,
@@ -85,7 +85,7 @@ impl HibernationWatcher {
                 r#"INSERT INTO audit_events (actor_id, organization_id, action, resource_type, resource_id, metadata)
                    VALUES (NULL, $1, 'workspace.hibernated', 'workspace', $2, $3)"#,
                 row.organization_id,
-                row.id,
+                row.id.to_string(),
                 serde_json::json!({ "reason": "idle_timeout", "idle_threshold_minutes": row.idle_threshold_minutes }),
             )
             .execute(&self.pool)

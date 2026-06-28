@@ -122,7 +122,7 @@ impl GitWorker {
         // Decrypt SSH key if present
         let ssh_key_pem: Option<String> = if let Some(secret_id) = ssh_key_secret_ref_id {
             let row = sqlx::query!(
-                "SELECT ciphertext, nonce FROM secret_refs WHERE id = $1",
+                "SELECT encrypted_value, nonce FROM secret_refs WHERE id = $1",
                 secret_id
             )
             .fetch_optional(&self.pool)
@@ -139,7 +139,7 @@ impl GitWorker {
                 let cipher = Aes256Gcm::new(key);
                 let nonce = Nonce::from_slice(&r.nonce);
                 let plaintext = cipher
-                    .decrypt(nonce, r.ciphertext.as_ref())
+                    .decrypt(nonce, r.encrypted_value.as_ref())
                     .map_err(|e| anyhow::anyhow!("decrypt ssh key: {e}"))?;
                 Some(String::from_utf8(plaintext).context("ssh key utf8")?)
             } else {

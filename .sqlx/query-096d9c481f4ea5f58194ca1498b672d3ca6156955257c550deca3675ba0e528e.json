@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT provider, model_nano, model_quick, model_standard, model_deep, model_agent,\n                  system_prompt, max_tokens, temperature\n           FROM ai_provider_configs WHERE organization_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "provider",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "model_nano",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "model_quick",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "model_standard",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "model_deep",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "model_agent",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "system_prompt",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "max_tokens",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "temperature",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "096d9c481f4ea5f58194ca1498b672d3ca6156955257c550deca3675ba0e528e"
+}

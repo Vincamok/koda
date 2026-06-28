@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO workspace_snapshots\n               (workspace_id, organization_id, created_by, label, volume_snapshot_path, status)\n           VALUES ($1, $2, $3, $4, $5, 'pending')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4304b6d984c6f7dbc431dd41541a46f0c565f690404917b192ab5503deb08a15"
+}

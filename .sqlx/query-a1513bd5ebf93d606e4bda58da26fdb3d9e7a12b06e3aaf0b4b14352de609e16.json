@@ -1,0 +1,92 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, uid, organization_id, project_id, name, status,\n                  cpu_limit, ram_limit_mb, pids_limit, created_by, created_at, updated_at\n           FROM workspaces\n           WHERE organization_id = $1\n             AND ($2::uuid IS NULL OR project_id = $2)\n             AND ($3::text IS NULL OR status = $3)\n           ORDER BY created_at DESC\n           LIMIT $4 OFFSET $5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "project_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "cpu_limit",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 7,
+        "name": "ram_limit_mb",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "pids_limit",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 11,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "a1513bd5ebf93d606e4bda58da26fdb3d9e7a12b06e3aaf0b4b14352de609e16"
+}

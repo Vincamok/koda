@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE shadow_deploys\n               SET status = 'completed', primary_output = $1, shadow_output = $2,\n                   diverged = $3, updated_at = NOW()\n               WHERE id = $4",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "fc084e566e9cdf063dca5663cffaf570cb94c50f43748093e57da14adb38a12e"
+}

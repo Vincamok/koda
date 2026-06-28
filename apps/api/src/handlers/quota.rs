@@ -130,31 +130,37 @@ pub async fn get_org_ai_config(
     .fetch_optional(&state.pool)
     .await?;
 
-    // Fall back to global default
-    let config = if let Some(c) = config {
-        c
+    macro_rules! to_ai_config {
+        ($r:expr) => {
+            AiConfigResponse {
+                provider: $r.provider,
+                model_nano: $r.model_nano,
+                model_quick: $r.model_quick,
+                model_standard: $r.model_standard,
+                model_deep: $r.model_deep,
+                model_agent: $r.model_agent,
+                system_prompt: $r.system_prompt,
+                max_tokens: $r.max_tokens,
+                temperature: $r.temperature,
+            }
+        };
+    }
+
+    let response = if let Some(c) = config {
+        to_ai_config!(c)
     } else {
-        sqlx::query!(
+        let r = sqlx::query!(
             r#"SELECT provider, model_nano, model_quick, model_standard, model_deep, model_agent,
                       system_prompt, max_tokens, temperature
                FROM ai_provider_configs WHERE is_global_default = TRUE LIMIT 1"#,
         )
         .fetch_optional(&state.pool)
         .await?
-        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("no global AI config found")))?
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("no global AI config found")))?;
+        to_ai_config!(r)
     };
 
-    Ok(Json(serde_json::json!({ "data": AiConfigResponse {
-        provider: config.provider,
-        model_nano: config.model_nano,
-        model_quick: config.model_quick,
-        model_standard: config.model_standard,
-        model_deep: config.model_deep,
-        model_agent: config.model_agent,
-        system_prompt: config.system_prompt,
-        max_tokens: config.max_tokens,
-        temperature: config.temperature.unwrap_or(0.7),
-    }})))
+    Ok(Json(serde_json::json!({ "data": response })))
 }
 
 #[utoipa::path(
@@ -199,7 +205,7 @@ pub async fn patch_org_ai_config(
                COALESCE($5, 'claude-sonnet-4-6'),
                COALESCE($6, 'claude-sonnet-4-6'),
                COALESCE($7, 'claude-opus-4-8'),
-               $8, COALESCE($9, 4096), COALESCE($10, 0.7))
+               $8, COALESCE($9, 4096), COALESCE($10::float8, 0.7))
            ON CONFLICT (organization_id) DO UPDATE SET
                provider         = COALESCE($2, ai_provider_configs.provider),
                model_nano       = COALESCE($3, ai_provider_configs.model_nano),

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE cicd_pipelines SET status = 'running', last_run_at = NOW(), updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e508a9c6c04e6be39cd32b9dad75d7d852fc8a1b40afde3c85a3b757bddcaf1b"
+}

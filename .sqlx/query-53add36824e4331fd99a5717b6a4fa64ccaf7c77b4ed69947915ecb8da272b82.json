@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO audit_events (actor_id, organization_id, action, resource_type, resource_id, metadata)\n                   VALUES (NULL, $1, 'workspace.hibernated', 'workspace', $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "53add36824e4331fd99a5717b6a4fa64ccaf7c77b4ed69947915ecb8da272b82"
+}

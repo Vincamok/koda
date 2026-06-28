@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FROM alert_events\n                   WHERE workspace_id = $1 AND message LIKE '%stuck%'\n                     AND created_at > NOW() - INTERVAL '4 hours'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "41020c9399191763faefba84c25fdb8957ca56b9757fc0943fac9c8c67abd27e"
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COUNT(*) FROM alert_events\n                   WHERE organization_id = $1 AND message LIKE '%quota%'\n                     AND created_at > NOW() - INTERVAL '24 hours'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "027b1d195bb691f3c6fdbc787e6f621567140153d4faa3c949d2c5fe2c4f7b5c"
+}

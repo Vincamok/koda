@@ -299,7 +299,7 @@ pub async fn admin_audit_logs(
     let rows = sqlx::query!(
         r#"SELECT ae.id, ae.actor_id, ae.organization_id, ae.action,
                   ae.resource_type, ae.resource_id, ae.metadata, ae.ip_address, ae.created_at,
-                  u.email AS actor_email
+                  u.email AS "actor_email: Option<String>"
            FROM audit_events ae
            LEFT JOIN users u ON u.id = ae.actor_id
            ORDER BY ae.created_at DESC
@@ -1060,9 +1060,10 @@ pub async fn admin_migrate_org(
     // Emit audit event
     let _ = sqlx::query!(
         r#"INSERT INTO audit_events (actor_id, organization_id, action, resource_type, resource_id, metadata)
-           VALUES ($1, $2, 'org.instance_migration_initiated', 'organization', $2, $3)"#,
+           VALUES ($1, $2, 'org.instance_migration_initiated', 'organization', $3, $4)"#,
         admin.id,
         org_id,
+        org_id.to_string(),
         serde_json::json!({
             "migration_id": migration_id,
             "source_instance": source_id,

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO diff_reviews (workspace_id, organization_id, pipeline_id, status)\n               VALUES ($1, $2, $3, 'running')\n               RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3f2b405ab838b02a8c74faeb1408cb5801d18296ceb352406a32d3570f3c1424"
+}

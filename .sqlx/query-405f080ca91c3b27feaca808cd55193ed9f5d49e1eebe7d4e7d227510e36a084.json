@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n               (SELECT COUNT(*) FROM organizations) AS total_orgs,\n               (SELECT COUNT(*) FROM users) AS total_users,\n               (SELECT COUNT(*) FROM workspaces WHERE status != 'closed') AS total_workspaces,\n               (SELECT COUNT(*) FROM workspaces WHERE status = 'running') AS running_workspaces,\n               (SELECT COUNT(*) FROM cicd_pipelines) AS total_pipelines,\n               (SELECT COUNT(*) FROM jobs WHERE status = 'failed') AS failed_jobs",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total_orgs",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "total_users",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "total_workspaces",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "running_workspaces",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "total_pipelines",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "failed_jobs",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "405f080ca91c3b27feaca808cd55193ed9f5d49e1eebe7d4e7d227510e36a084"
+}

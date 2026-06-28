@@ -1,0 +1,49 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO workspace_mcp_bindings\n               (workspace_id, connector_definition_id, config, enabled)\n           VALUES ($1, $2, $3, $4)\n           ON CONFLICT (workspace_id, connector_definition_id)\n           DO UPDATE SET config = EXCLUDED.config,\n                         enabled = EXCLUDED.enabled,\n                         updated_at = NOW()\n           RETURNING id, workspace_id, connector_definition_id, config, enabled",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "connector_definition_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 4,
+        "name": "enabled",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Jsonb",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f44e2708338ce0c65ba330fd224b106ab29e8054bece05fc92205edf2b6c5511"
+}

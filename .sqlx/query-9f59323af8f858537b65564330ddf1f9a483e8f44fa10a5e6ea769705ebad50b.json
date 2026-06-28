@@ -1,0 +1,46 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT w.id,\n                   w.uid,\n                   w.organization_id,\n                   COALESCE(hc.idle_threshold_minutes, $1) AS idle_threshold_minutes,\n                   COALESCE(hc.enabled, true) AS enabled\n            FROM workspaces w\n            LEFT JOIN workspace_hibernation_configs hc\n                   ON hc.organization_id = w.organization_id\n            WHERE w.status = 'running'\n              AND COALESCE(hc.enabled, true) = true\n              AND w.last_activity_at IS NOT NULL\n              AND w.last_activity_at < NOW() - (COALESCE(hc.idle_threshold_minutes, $1) * INTERVAL '1 minute')\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "uid",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "idle_threshold_minutes",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "enabled",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "9f59323af8f858537b65564330ddf1f9a483e8f44fa10a5e6ea769705ebad50b"
+}

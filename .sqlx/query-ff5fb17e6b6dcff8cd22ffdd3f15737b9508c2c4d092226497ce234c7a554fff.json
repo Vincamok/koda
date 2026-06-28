@@ -1,0 +1,19 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO alert_events (rule_id, organization_id, workspace_id, severity, message, metadata)\n                   SELECT id, $2, $3, $4, $5, $6 FROM alert_rules\n                   WHERE organization_id = $2 AND rule_type = $1 AND enabled = true\n                   LIMIT 1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ff5fb17e6b6dcff8cd22ffdd3f15737b9508c2c4d092226497ce234c7a554fff"
+}

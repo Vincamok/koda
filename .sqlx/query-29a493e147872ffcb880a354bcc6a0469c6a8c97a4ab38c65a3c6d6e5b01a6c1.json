@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO refactor_runs (workspace_id, organization_id, pipeline_id, status)\n               VALUES ($1, $2, $3, 'running')\n               RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "29a493e147872ffcb880a354bcc6a0469c6a8c97a4ab38c65a3c6d6e5b01a6c1"
+}

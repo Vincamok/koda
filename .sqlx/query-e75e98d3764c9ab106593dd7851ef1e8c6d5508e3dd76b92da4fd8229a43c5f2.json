@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE artifact_exports SET status = 'uploading', updated_at = NOW() WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e75e98d3764c9ab106593dd7851ef1e8c6d5508e3dd76b92da4fd8229a43c5f2"
+}

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{bail, Context};
 use bollard::{
     container::{Config, CreateContainerOptions, InspectContainerOptions, StartContainerOptions, StopContainerOptions, RemoveContainerOptions},
-    models::{HostConfig, Resources},
+    models::HostConfig,
     network::{ConnectNetworkOptions, CreateNetworkOptions},
     volume::CreateVolumeOptions,
     Docker,

@@ -9,6 +9,42 @@
 
 ---
 
+## [1.1.2] — 2026-06-28 · SQLx offline cache + compilation fixes
+
+### Added
+- `.sqlx/` offline query cache generated via `cargo sqlx prepare --workspace` — all Rust services now compile without a live PostgreSQL connection
+- Migration `202600010060_users_is_active.sql` : colonne `is_active BOOLEAN NOT NULL DEFAULT true` sur `users`
+- Migration `202600010061_add_missing_columns.sql` : colonnes `metadata JSONB` (workspaces), `encryption_key_id UUID` (secret_refs), `status TEXT` (vulnerability_findings), `health_status TEXT` + `last_probed_at TIMESTAMPTZ` (workspace_plugin_bindings)
+- `ENV SQLX_OFFLINE=true` + `COPY .sqlx` dans tous les Dockerfiles Rust (api, orchestrator, worker, git-manager, gateway)
+
+### Fixed
+- `apps/api/src/models/user.rs` : ajout du champ `is_active: bool` (colonne DB ajoutée)
+- `apps/api/src/main.rs` : migration session store de `redis::Client` vers `fred::clients::RedisPool` (requis par tower-sessions-redis-store 0.12)
+- `apps/api/src/handlers/admin.rs` : annotation `"actor_email: Option<String>"` sur LEFT JOIN + paramètre `$3` distinct pour `resource_id`
+- `apps/api/src/handlers/ide.rs` : suppression `?` sur `connector_tools` (colonne NOT NULL)
+- `apps/api/src/handlers/personal.rs` : ajout `Clone` sur `PersonalFileResponse`
+- `apps/api/src/handlers/pipelines.rs` : annotation `let _: String =` sur `redis.xadd()` (never type fallback)
+- `apps/api/src/handlers/plugins.rs` : champ `version` `Option<String>` → `String` (NOT NULL en DB)
+- `apps/api/src/handlers/quota.rs` : cast `::float8` sur paramètre NUMERIC + refactoring macro pour éviter types anonymes incompatibles
+- `apps/api/src/handlers/tickets.rs` : `created_by` `Uuid` → `Option<Uuid>` (nullable en DB)
+- `apps/api/src/handlers/workspaces.rs` : suppression `.unwrap_or_else` sur `gc.branch` (NOT NULL)
+- `apps/api/src/handlers/ws_terminal.rs` + `shared_terminal.rs` : cols/rows `u32` → `u16`
+- `services/orchestrator/src/docker.rs` : suppression import `Resources` inutilisé (bollard 0.17)
+- `services/orchestrator/src/sozu.rs` : remplacement `AddTcpFrontend`/`RemoveTcpFrontend` par `RequestTcpFrontend` (sozu-command-lib 1.1.1)
+- `services/orchestrator/src/worker.rs` : annotation de type sur `query_scalar!`
+- `services/worker/src/pipeline_runner.rs` : suppression `}` parasite fermant prématurément `impl PipelineRunner` ; fields ressources bollard aplatis dans `HostConfig` directement
+- `services/worker/src/git_cloner.rs` : `redis::Value::Data` (était `BulkString`) ; `decrypt_aes_gcm` accepte `&[u8]` (colonne `bytea`)
+- `services/worker/src/s3_exporter.rs` : `redis::Value::BulkString` → `Data` partout
+- `services/worker/src/hibernation.rs` : `DEFAULT_IDLE_MINUTES` `i64` → `i32` ; `resource_id` UUID → `.to_string()`
+- `services/git-manager/src/worker.rs` : `ciphertext` → `encrypted_value` (nom réel de la colonne)
+- `services/mcp-gateway/src/connectors/postgres.rs` : ajout `use sqlx::{Column, Row}`
+- `services/mcp-gateway/src/connectors/http.rs` : correction lifetime `header_name` via `HeaderName::parse()`
+- `apps/api/Cargo.toml` : ajout `fred = { workspace = true }`
+- `apps/cli/Cargo.toml` : ajout feature `"env"` sur clap
+- `Cargo.toml` (workspace) : feature `"bigdecimal"` sqlx ; `tower-sessions-redis-store = "0.12"` ; `fred = "8"`
+
+---
+
 ## [1.1.1] — 2026-06-28 · Fix build OOM + next-intl static rendering
 
 ### Fixed

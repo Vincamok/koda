@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO user_settings (user_id, locale, theme_id)\n           VALUES ($1, COALESCE($2, 'fr'), COALESCE($3, 'default'))\n           ON CONFLICT (user_id) DO UPDATE\n             SET locale   = COALESCE($2, user_settings.locale),\n                 theme_id = COALESCE($3, user_settings.theme_id),\n                 updated_at = NOW()\n           RETURNING user_id, locale, theme_id, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "locale",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "theme_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b624aa7902033198185837f01967439d3ec358867d1e2c4db87a04f9dea035aa"
+}

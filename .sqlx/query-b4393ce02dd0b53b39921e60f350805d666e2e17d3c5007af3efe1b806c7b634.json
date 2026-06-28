@@ -1,0 +1,94 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, slug, name, description, author, version, category, icon_url, repo_url,\n                  config_schema, is_builtin, approved,\n                  (SELECT COUNT(*) FROM workspace_plugin_bindings wpb WHERE wpb.plugin_definition_id = pd.id) AS install_count\n           FROM plugin_definitions pd\n           WHERE id = $1 AND (approved = true OR is_builtin = true)",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "author",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "version",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "icon_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "repo_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "config_schema",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 10,
+        "name": "is_builtin",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 11,
+        "name": "approved",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 12,
+        "name": "install_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "b4393ce02dd0b53b39921e60f350805d666e2e17d3c5007af3efe1b806c7b634"
+}

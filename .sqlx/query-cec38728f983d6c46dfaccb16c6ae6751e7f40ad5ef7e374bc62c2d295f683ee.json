@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM ticket_records WHERE id = $1 AND workspace_id = $2 AND organization_id = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cec38728f983d6c46dfaccb16c6ae6751e7f40ad5ef7e374bc62c2d295f683ee"
+}

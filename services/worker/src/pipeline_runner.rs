@@ -4,7 +4,7 @@ use bollard::{
         Config, CreateContainerOptions, LogsOptions, RemoveContainerOptions,
         StartContainerOptions, WaitContainerOptions,
     },
-    models::{HostConfig, Resources},
+    models::HostConfig,
     Docker,
 };
 use futures::StreamExt;
@@ -796,14 +796,11 @@ Source code to analyze:
                     labels: Some(labels),
                     host_config: Some(HostConfig {
                         binds,
-                        resources: Some(Resources {
-                            nano_cpus: Some(1_000_000_000),
-                            memory: Some(512 * 1024 * 1024),
-                            pids_limit: Some(256),
-                            cpu_period: Some(100_000),
-                            cpu_quota: Some(100_000),
-                            ..Default::default()
-                        }),
+                        nano_cpus: Some(1_000_000_000),
+                        memory: Some(512 * 1024 * 1024),
+                        pids_limit: Some(256),
+                        cpu_period: Some(100_000),
+                        cpu_quota: Some(100_000),
                         auto_remove: Some(false),
                         network_mode: Some("none".to_string()),
                         cap_drop: Some(vec!["ALL".to_string()]),
@@ -880,7 +877,6 @@ Source code to analyze:
 
         Ok(())
     }
-}
 
     // ── Diff Review — LLM review automatique du diff Git ──────────────────────
 
@@ -1596,14 +1592,11 @@ async fn shadow_run_container(
             labels: Some(labels),
             host_config: Some(HostConfig {
                 binds,
-                resources: Some(Resources {
-                    nano_cpus: Some(500_000_000),
-                    memory: Some(256 * 1024 * 1024),
-                    pids_limit: Some(128),
-                    cpu_period: Some(100_000),
-                    cpu_quota: Some(50_000),
-                    ..Default::default()
-                }),
+                nano_cpus: Some(500_000_000),
+                memory: Some(256 * 1024 * 1024),
+                pids_limit: Some(128),
+                cpu_period: Some(100_000),
+                cpu_quota: Some(50_000),
                 auto_remove: Some(false),
                 network_mode: Some("none".to_string()),
                 cap_drop: Some(vec!["ALL".to_string()]),

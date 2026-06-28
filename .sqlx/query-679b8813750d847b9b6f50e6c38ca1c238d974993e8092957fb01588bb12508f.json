@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM workspace_plugin_bindings WHERE workspace_id = $1 AND plugin_definition_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "679b8813750d847b9b6f50e6c38ca1c238d974993e8092957fb01588bb12508f"
+}

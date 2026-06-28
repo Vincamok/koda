@@ -22,7 +22,7 @@ tower-http = { version = "0.5", features = ["cors", "trace", "request-id"] }
 axum-client-ip = "0.5"
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "time", "json", "migrate"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "time", "json", "migrate", "bigdecimal"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
@@ -59,7 +59,8 @@ base64 = "0.21"
 
 # Sessions
 tower-sessions = { version = "0.12", features = ["memory-store"] }
-tower-sessions-redis-store = "0.13"
+tower-sessions-redis-store = "0.12"
+fred = { version = "8" }
 
 # OAuth / JWT
 oauth2 = "4"

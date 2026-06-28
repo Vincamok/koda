@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO security_policies (organization_id) VALUES ($1)\n               RETURNING id, organization_id, min_severity_to_block, image_scan_trigger,\n                         security_ai_config, created_at, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "min_severity_to_block",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "image_scan_trigger",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "security_ai_config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "05d36d9ee9e8448a49aa73ef3d56b455e11fdf178898ffa2ffa6ca65643fae88"
+}

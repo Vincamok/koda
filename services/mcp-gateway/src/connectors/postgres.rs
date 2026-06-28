@@ -74,7 +74,7 @@ fn is_write_query(sql: &str) -> bool {
 }
 
 fn row_to_json(row: &sqlx::postgres::PgRow) -> Value {
-    use sqlx::Row;
+    use sqlx::{Column, Row};
     let mut map = serde_json::Map::new();
     for col in row.columns() {
         let val: Value = row.try_get(col.name()).unwrap_or(Value::Null);

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobs (job_type, payload, status) VALUES ('pipeline', $1, 'pending')",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1c96b1036fe18da6ed437956e18872a2bb490fb89ad76bfc1c9e4517e336a552"
+}

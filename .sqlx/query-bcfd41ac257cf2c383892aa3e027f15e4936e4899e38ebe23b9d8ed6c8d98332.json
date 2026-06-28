@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM workspace_env_vars WHERE workspace_id = $1 AND org_id = $2 AND key = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bcfd41ac257cf2c383892aa3e027f15e4936e4899e38ebe23b9d8ed6c8d98332"
+}

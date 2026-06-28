@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, repo_url, branch, ssh_key_secret_ref_id\n           FROM workspace_git_configs\n           WHERE workspace_id = $1\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "repo_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "branch",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "ssh_key_secret_ref_id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "369c9fd3d19d56d777bb32c3e3f571d7f2bc8c6b7cfc6fd89b1ed0f31688df28"
+}

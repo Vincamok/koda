@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE ai_provider_configs SET model_agent = $1, updated_at = NOW() WHERE is_global_default = TRUE",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "ba0334cb6ee9d22ae02ab3fca54e56050d0a199dfccffa56cf4ed2787fa99382"
+}

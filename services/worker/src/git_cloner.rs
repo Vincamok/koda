@@ -72,9 +72,10 @@ impl GitCloner {
                             tracing::warn!(id = %id, attempt = *count, error = %e, "git clone failed");
                             if *count >= MAX_RETRIES {
                                 tracing::error!(id = %id, "moving git job to dead letter");
-                                if let Some(payload) = message.map.get("payload") {
+                                if let Some(redis::Value::Data(b)) = message.map.get("payload") {
+                                    let s = String::from_utf8_lossy(b).to_string();
                                     let _: Result<(), _> = self.redis
-                                        .xadd(DEAD_LETTER, "*", &[("payload", payload.as_ref())])
+                                        .xadd(DEAD_LETTER, "*", &[("payload", s)])
                                         .await;
                                 }
                                 let _: Result<(), _> = self.redis.xack(STREAM, &self.group, &[&id]).await;
@@ -91,7 +92,10 @@ impl GitCloner {
         let payload = message
             .map
             .get("payload")
-            .and_then(|v| v.as_ref().to_str().ok())
+            .and_then(|v| match v {
+                redis::Value::Data(b) => std::str::from_utf8(b).ok(),
+                _ => None,
+            })
             .ok_or_else(|| anyhow::anyhow!("missing payload"))?;
 
         let job: GitJob = serde_json::from_str(payload)?;
@@ -323,17 +327,13 @@ impl GitCloner {
         }
 
         let key_bytes = hex::decode(&key_hex)?;
-        decrypt_aes_gcm(&key_bytes, &row.encrypted_value)
+        decrypt_aes_gcm(&key_bytes, &row.encrypted_value[..])
     }
 }
 
-fn decrypt_aes_gcm(key: &[u8], ciphertext_b64: &str) -> anyhow::Result<String> {
+fn decrypt_aes_gcm(key: &[u8], ct: &[u8]) -> anyhow::Result<String> {
     use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 
-    let ct = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        ciphertext_b64,
-    )?;
     if ct.len() < 12 {
         return Err(anyhow::anyhow!("ciphertext too short"));
     }

@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT cd.name AS connector_name, cd.tools AS connector_tools\n               FROM workspace_mcp_bindings wb\n               JOIN mcp_connector_definitions cd ON cd.id = wb.connector_definition_id\n               WHERE wb.workspace_id = $1 AND wb.enabled = TRUE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "connector_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "connector_tools",
+        "type_info": "Jsonb"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "19ba121e9c610eb1dfdc40cf4b991624b5b2f97438d5edc2f406baeb4f2be2ad"
+}

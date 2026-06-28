@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT\n           COUNT(*) FILTER (WHERE status != 'closed') AS total,\n           COUNT(*) FILTER (WHERE status = 'running') AS running,\n           COUNT(*) FILTER (WHERE status = 'ready') AS ready,\n           COUNT(*) FILTER (WHERE status = 'cloning') AS cloning,\n           COUNT(*) FILTER (WHERE status = 'reviewing') AS reviewing,\n           COUNT(*) FILTER (WHERE status = 'failed') AS failed\n           FROM workspaces",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "running",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "ready",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "cloning",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "reviewing",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 5,
+        "name": "failed",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "67a5692a41fba137c20c9e7cd678548135ee48eeca21036c2ffce210b0b3d8c5"
+}

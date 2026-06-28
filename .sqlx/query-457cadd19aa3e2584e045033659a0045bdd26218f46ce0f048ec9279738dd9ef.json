@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO instance_org_migrations\n               (organization_id, source_instance, target_instance, initiated_by, status)\n           VALUES ($1, $2, $3, $4, 'pending')\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "457cadd19aa3e2584e045033659a0045bdd26218f46ce0f048ec9279738dd9ef"
+}

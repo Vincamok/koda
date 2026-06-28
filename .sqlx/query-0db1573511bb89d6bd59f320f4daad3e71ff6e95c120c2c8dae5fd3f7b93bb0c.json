@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE workspaces SET metadata = jsonb_set(\n                COALESCE(metadata, '{}'),\n                '{devcontainer}',\n                $1::jsonb\n               ), updated_at = NOW()\n               WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "0db1573511bb89d6bd59f320f4daad3e71ff6e95c120c2c8dae5fd3f7b93bb0c"
+}

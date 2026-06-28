@@ -1,0 +1,58 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, organization_id, min_severity_to_block, image_scan_trigger,\n                  security_ai_config, created_at, updated_at\n           FROM security_policies WHERE organization_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "min_severity_to_block",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "image_scan_trigger",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "security_ai_config",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "c190434f6a4eee9f07de739bc9f8df126fd69230c68b882f49a09e852d52c58f"
+}

@@ -1,0 +1,60 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT o.id, o.name, o.slug, o.status, o.created_at,\n                  COUNT(DISTINCT m.user_id) AS member_count,\n                  COUNT(DISTINCT w.id) AS workspace_count\n           FROM organizations o\n           LEFT JOIN memberships m ON m.organization_id = o.id\n           LEFT JOIN workspaces w ON w.organization_id = o.id AND w.status != 'closed'\n           WHERE ($1::TEXT IS NULL OR o.name ILIKE '%' || $1 || '%' OR o.slug ILIKE '%' || $1 || '%')\n           GROUP BY o.id\n           ORDER BY o.created_at DESC\n           LIMIT $2 OFFSET $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "slug",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "member_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 6,
+        "name": "workspace_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "9c4f01a4a19ae0229bf3d98639275094d0c9238e1d46912a4c1f0d96d7d35d5d"
+}

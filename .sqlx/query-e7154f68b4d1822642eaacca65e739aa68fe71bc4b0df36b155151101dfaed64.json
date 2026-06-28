@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO vulnerability_findings\n                       (security_report_id, title, description, severity, rule_id, file_path, line_number, evidence)\n                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e7154f68b4d1822642eaacca65e739aa68fe71bc4b0df36b155151101dfaed64"
+}

@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT at.id, at.workspace_id, at.pipeline_id, at.trigger_type,\n                  at.schedule_cron, at.is_active, at.created_at\n           FROM automation_triggers at\n           JOIN cicd_pipelines cp ON cp.id = at.pipeline_id\n           WHERE at.workspace_id = $1 AND cp.organization_id = $2\n           ORDER BY at.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "pipeline_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "trigger_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "schedule_cron",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "is_active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "048d83111f758e879fc27aa2216b8f6e980ffcf4095b9b34400b3087007dd916"
+}

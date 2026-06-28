@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use fred::prelude::*;
 use opentelemetry::global;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, runtime};
@@ -94,8 +95,11 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState { pool, config: config.clone(), http, redis: redis_conn, redis_client: redis_client_jobs.clone() };
 
     // ── Session store ─────────────────────────────────────────────────────────
-    let redis_client = redis::Client::open(config.redis_url.as_str())?;
-    let session_store = RedisStore::new(redis_client);
+    let fred_config = fred::types::RedisConfig::from_url(config.redis_url.as_str())?;
+    let fred_pool = fred::clients::RedisPool::new(fred_config, None, None, None, 6)?;
+    fred_pool.connect();
+    fred_pool.wait_for_connect().await?;
+    let session_store = RedisStore::new(fred_pool);
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(false)
         .with_expiry(Expiry::OnSessionEnd);

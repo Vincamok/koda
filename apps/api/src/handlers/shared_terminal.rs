@@ -208,8 +208,8 @@ async fn run_owner_terminal(
             match msg {
                 Ok(Message::Binary(data)) => {
                     if data.len() == 5 && data[0] == 0x01 {
-                        let cols = u16::from_be_bytes([data[1], data[2]]) as u32;
-                        let rows = u16::from_be_bytes([data[3], data[4]]) as u32;
+                        let cols = u16::from_be_bytes([data[1], data[2]]);
+                        let rows = u16::from_be_bytes([data[3], data[4]]);
                         let _ = docker.resize_exec(&exec_id_clone, ResizeExecOptions { width: cols, height: rows }).await;
                     } else if input_writer.write(&data).await.is_err() {
                         break;

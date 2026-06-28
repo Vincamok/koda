@@ -770,7 +770,7 @@ pub async fn post_workspace_fork(
     .await?;
 
     if let Some(gc) = git_cfg {
-        let branch = gc.branch.unwrap_or_else(|| "main".into());
+        let branch = gc.branch;
         let new_gc = sqlx::query!(
             r#"INSERT INTO workspace_git_configs
                    (workspace_id, repo_url, branch, ssh_key_secret_ref_id)

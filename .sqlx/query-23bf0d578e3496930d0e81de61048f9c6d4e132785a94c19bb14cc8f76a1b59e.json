@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO workspace_notes (workspace_id, organization_id, user_id, content)\n           VALUES ($1, $2, $3, $4)\n           ON CONFLICT (workspace_id, user_id)\n           DO UPDATE SET content = EXCLUDED.content, updated_at = NOW()\n           RETURNING id, workspace_id, content, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "23bf0d578e3496930d0e81de61048f9c6d4e132785a94c19bb14cc8f76a1b59e"
+}

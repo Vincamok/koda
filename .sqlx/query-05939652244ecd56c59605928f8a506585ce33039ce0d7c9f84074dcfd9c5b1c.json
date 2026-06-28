@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT q.organization_id,\n                   q.max_workspaces,\n                   COUNT(w.id)::BIGINT AS used_workspaces\n            FROM organization_quotas q\n            LEFT JOIN workspaces w ON w.organization_id = q.organization_id AND w.status != 'closed'\n            GROUP BY q.organization_id, q.max_workspaces\n            HAVING COUNT(w.id)::BIGINT >= (q.max_workspaces * 0.8)::BIGINT\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "max_workspaces",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 2,
+        "name": "used_workspaces",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "05939652244ecd56c59605928f8a506585ce33039ce0d7c9f84074dcfd9c5b1c"
+}

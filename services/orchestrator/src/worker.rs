@@ -189,7 +189,7 @@ impl OrchestratorWorker {
 
     async fn stop_workspace(&mut self, workspace_id: Uuid, org_id: Uuid) -> anyhow::Result<()> {
         // Retrieve uid for sozu route removal before stopping
-        let uid = sqlx::query_scalar!(
+        let uid: Option<String> = sqlx::query_scalar!(
             "SELECT uid FROM workspaces WHERE id = $1 AND organization_id = $2",
             workspace_id,
             org_id

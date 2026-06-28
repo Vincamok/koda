@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO ai_provider_configs\n               (organization_id, provider, model_nano, model_quick, model_standard, model_deep,\n                model_agent, system_prompt, max_tokens, temperature)\n           VALUES ($1,\n               COALESCE($2, 'anthropic'),\n               COALESCE($3, 'claude-haiku-4-5-20251001'),\n               COALESCE($4, 'claude-haiku-4-5-20251001'),\n               COALESCE($5, 'claude-sonnet-4-6'),\n               COALESCE($6, 'claude-sonnet-4-6'),\n               COALESCE($7, 'claude-opus-4-8'),\n               $8, COALESCE($9, 4096), COALESCE($10::float8, 0.7))\n           ON CONFLICT (organization_id) DO UPDATE SET\n               provider         = COALESCE($2, ai_provider_configs.provider),\n               model_nano       = COALESCE($3, ai_provider_configs.model_nano),\n               model_quick      = COALESCE($4, ai_provider_configs.model_quick),\n               model_standard   = COALESCE($5, ai_provider_configs.model_standard),\n               model_deep       = COALESCE($6, ai_provider_configs.model_deep),\n               model_agent      = COALESCE($7, ai_provider_configs.model_agent),\n               system_prompt    = COALESCE($8, ai_provider_configs.system_prompt),\n               max_tokens       = COALESCE($9, ai_provider_configs.max_tokens),\n               temperature      = COALESCE($10, ai_provider_configs.temperature),\n               updated_at       = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "06f21dbef53dd531ba45267cbd5fe0cfdd27b8c57dc44fca3b64903e8a916e08"
+}

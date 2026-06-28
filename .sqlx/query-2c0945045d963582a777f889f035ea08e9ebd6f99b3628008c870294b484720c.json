@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT cp.organization_id,\n                   cp.workspace_id,\n                   COUNT(j.id)::BIGINT AS failed_count\n            FROM jobs j\n            JOIN cicd_pipelines cp ON cp.id::TEXT = (j.payload->>'pipeline_id')\n            WHERE j.status = 'failed'\n              AND j.updated_at > NOW() - INTERVAL '1 hour'\n            GROUP BY cp.organization_id, cp.workspace_id\n            HAVING COUNT(j.id) >= 3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "failed_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "2c0945045d963582a777f889f035ea08e9ebd6f99b3628008c870294b484720c"
+}

@@ -2,8 +2,8 @@ use anyhow::Context;
 use sozu_command_lib::{
     channel::Channel,
     proto::command::{
-        AddBackend, AddTcpFrontend, IpAddress, RemoveBackend, RemoveTcpFrontend, Request,
-        RequestHttpFrontend, Response, ResponseStatus, SocketAddress,
+        AddBackend, IpAddress, RemoveBackend, Request,
+        RequestHttpFrontend, RequestTcpFrontend, Response, ResponseStatus, SocketAddress,
         ip_address::Inner as IpInner, request::RequestType,
     },
 };
@@ -114,7 +114,7 @@ impl SozuClient {
         };
         self.send(RequestType::AddBackend(backend))?;
 
-        let frontend = AddTcpFrontend {
+        let frontend = RequestTcpFrontend {
             cluster_id,
             address: make_socket_addr([0, 0, 0, 0], exposed_port),
             ..Default::default()
@@ -144,9 +144,10 @@ impl SozuClient {
             address: addr,
         }))?;
 
-        self.send(RequestType::RemoveTcpFrontend(RemoveTcpFrontend {
+        self.send(RequestType::RemoveTcpFrontend(RequestTcpFrontend {
             cluster_id,
             address: make_socket_addr([0, 0, 0, 0], exposed_port),
+            ..Default::default()
         }))?;
 
         Ok(())

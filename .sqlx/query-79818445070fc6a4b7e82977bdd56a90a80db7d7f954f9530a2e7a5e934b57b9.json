@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE security_policies SET security_ai_config = $1, updated_at = NOW() WHERE organization_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Jsonb",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "79818445070fc6a4b7e82977bdd56a90a80db7d7f954f9530a2e7a5e934b57b9"
+}

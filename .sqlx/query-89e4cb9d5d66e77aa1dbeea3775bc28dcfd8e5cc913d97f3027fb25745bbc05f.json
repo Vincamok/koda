@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE security_policies SET image_scan_trigger = $1, updated_at = NOW() WHERE organization_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "89e4cb9d5d66e77aa1dbeea3775bc28dcfd8e5cc913d97f3027fb25745bbc05f"
+}

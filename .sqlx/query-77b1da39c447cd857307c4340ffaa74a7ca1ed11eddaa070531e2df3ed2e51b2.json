@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE m2m_tokens\n           SET revoked_at = NOW(), updated_at = NOW()\n           WHERE id = $1 AND organization_id = $2 AND revoked_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "77b1da39c447cd857307c4340ffaa74a7ca1ed11eddaa070531e2df3ed2e51b2"
+}

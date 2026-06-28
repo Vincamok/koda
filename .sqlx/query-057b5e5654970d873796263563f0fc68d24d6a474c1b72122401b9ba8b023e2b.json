@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO workspace_plugin_bindings (workspace_id, plugin_definition_id, status, config)\n           VALUES ($1, $2, 'pending', '{}')\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "057b5e5654970d873796263563f0fc68d24d6a474c1b72122401b9ba8b023e2b"
+}

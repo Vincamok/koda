@@ -68,7 +68,8 @@ fn build_client(config: &HashMap<String, Value>) -> anyhow::Result<reqwest::Clie
             }
         }
         "apikey-header" => {
-            let header_name = config.get("auth_header").and_then(|v| v.as_str()).unwrap_or("X-Api-Key");
+            let header_name_str = config.get("auth_header").and_then(|v| v.as_str()).unwrap_or("X-Api-Key");
+            let header_name: reqwest::header::HeaderName = header_name_str.parse()?;
             if let Some(key) = config.get("auth_value").and_then(|v| v.as_str()) {
                 headers.insert(header_name, key.parse()?);
             }

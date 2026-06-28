@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO jobs (job_type, payload, status, attempts)\n               VALUES ('pipeline', $1, 'running', 1)\n               RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "462bb38e22949b5397a87c582750aff928cd3b835bd33ce8726efb1403f70e0e"
+}

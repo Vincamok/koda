@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT ts.id, ts.owner_id, ts.container_id, ts.redis_channel, ts.allow_write\n           FROM terminal_sessions ts\n           JOIN memberships m ON m.organization_id = ts.organization_id AND m.user_id = $3\n           WHERE ts.id = $1 AND ts.workspace_id = $2 AND ts.status = 'active'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "owner_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "container_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "redis_channel",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "allow_write",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "f3746c468eae9b5c344ce461690d99b6f8765cb185a8602e9caec5029bc08cdb"
+}

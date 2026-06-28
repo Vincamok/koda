@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO plugin_definitions\n               (slug, name, description, author, version, category, icon_url, repo_url, config_schema,\n                is_builtin, approved, submitted_by_org, submitted_by_user)\n           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, false, $10, $11)\n           RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Jsonb",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b7646119ac83c7ebd89e124c656e85a08c57c882cf6671d99b095044158d832b"
+}

@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT w.id,\n               wpb.container_id\n        FROM workspaces w\n        JOIN memberships m ON m.organization_id = w.organization_id AND m.user_id = $2\n        LEFT JOIN workspace_plugin_bindings wpb\n               ON wpb.workspace_id = w.id\n              AND wpb.status = 'running'\n        LEFT JOIN plugin_definitions pd ON pd.id = wpb.plugin_definition_id\n              AND pd.slug IN ('koda-web-ide', 'ssh', 'code-server')\n        WHERE w.id = $1\n          AND w.status != 'closed'\n        ORDER BY\n            CASE pd.slug\n                WHEN 'koda-web-ide' THEN 1\n                WHEN 'code-server'  THEN 2\n                WHEN 'ssh'          THEN 3\n                ELSE 4\n            END\n        LIMIT 1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "container_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "d0ecb0e093e492f7a6a88f61693af9df436a83c2ba859a45279128069c823b2f"
+}

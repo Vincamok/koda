@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE diff_reviews\n               SET status = 'completed', summary = $1, review_text = $2,\n                   files_changed = $3, insertions = $4, deletions = $5,\n                   base_ref = $6, head_ref = $7, updated_at = NOW()\n               WHERE id = $8",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "78f2cdff9fcdb028e0ed1263a868a78242d148f768dc56b2bc79a188da289c88"
+}

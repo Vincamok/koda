@@ -1,0 +1,97 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, workspace_id, organization_id, pipeline_id, status,\n                  summary, review_text, files_changed, insertions, deletions,\n                  base_ref, head_ref, created_at\n           FROM diff_reviews\n           WHERE workspace_id = $1 AND organization_id = $2\n           ORDER BY created_at DESC\n           LIMIT $3 OFFSET $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "workspace_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "organization_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "pipeline_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "summary",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "review_text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "files_changed",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 8,
+        "name": "insertions",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "deletions",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 10,
+        "name": "base_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "head_ref",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "c333f13877aaa8ee1159e608a1d6e2a77d97955712bdeb6787dbc27b12b3063a"
+}

@@ -12,6 +12,7 @@ pub struct User {
     pub display_name: String,
     pub avatar_url: Option<String>,
     pub is_super_admin: bool,
+    pub is_active: bool,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
 }

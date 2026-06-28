@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE workspace_git_configs\n                       SET clone_status = 'failed', clone_error = $1, updated_at = NOW()\n                       WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3ef30029f6ed67f45516f6813734f139196596178277c9bdd58168746ed0573e"
+}

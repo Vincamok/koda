@@ -150,8 +150,8 @@ async fn run_terminal(
                 Ok(Message::Binary(data)) => {
                     // Check for resize packet: 0x01 prefix + 4 bytes (u16 cols, u16 rows BE)
                     if data.len() == 5 && data[0] == 0x01 {
-                        let cols = u16::from_be_bytes([data[1], data[2]]) as u32;
-                        let rows = u16::from_be_bytes([data[3], data[4]]) as u32;
+                        let cols = u16::from_be_bytes([data[1], data[2]]);
+                        let rows = u16::from_be_bytes([data[3], data[4]]);
                         let _ = docker
                             .resize_exec(
                                 &exec_id,
