@@ -9,6 +9,18 @@
 
 ---
 
+## [0.4.5] — 2026-06-28 · CI/CD complet — Phase 0 finalisée
+
+### Added
+- **CI GitHub Actions** : ajout `mcp-gateway` dans la matrice de build Docker (9 images au total)
+- **CLI binary release** : job `build-cli` compile `koda` en release mode et uploade l'artefact `koda-cli-linux-x86_64` sur chaque push `main`
+- Déploiement staging dépend maintenant de `[build, build-cli]`
+
+### Changed
+- Phase 0 complète ✓ : tous les items ROADMAP cochés (Pipeline Harness lint/test/build + déploiement auto)
+
+---
+
 ## [0.4.4] — 2026-06-28 · Phase 2 completion + tests
 
 ### Added

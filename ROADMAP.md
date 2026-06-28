@@ -35,8 +35,8 @@ Infrastructure de base opérationnelle : monorepo, API authentifiée, BDD, proxy
 - [x] sozu en Docker Compose dev avec route de test (`infra/sozu/sozu.toml`)
 - [x] Service `gateway/` : client sozu-command-lib minimal (add/remove HttpFrontend)
 - [x] Dashboard Next.js : skeleton + page login + layout de base (responsive mobile-first)
-- [ ] Pipeline Harness : lint → test → build image → push registry
-- [ ] Pipeline Harness prod : déploiement auto sur merge `main`
+- [x] Pipeline Harness : lint → test → build image → push registry
+- [x] Pipeline Harness prod : déploiement auto sur merge `main`
 - [x] Système de thèmes : ThemeProvider + 4 skins (default, minimal, pro, light)
 - [x] Config par service : `config/default.yaml` + `.env.example` dans chaque service
 - [x] `figment` pour le chargement config (YAML + env + .env)

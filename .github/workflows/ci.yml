@@ -123,6 +123,9 @@ jobs:
           - service: web-client
             context: .
             dockerfile: apps/web-client/Dockerfile
+          - service: mcp-gateway
+            context: .
+            dockerfile: services/mcp-gateway/Dockerfile
 
     steps:
       - uses: actions/checkout@v4
@@ -157,11 +160,39 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
 
+  # ── Build CLI binary (only on main) ─────────────────────────────────────────
+  build-cli:
+    name: Build koda CLI binary
+    runs-on: ubuntu-24.04
+    needs: [rust]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: koda-rust
+
+      - name: Build CLI release binary
+        run: cargo build --release -p koda-cli
+
+      - name: Upload CLI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: koda-cli-linux-x86_64
+          path: target/release/koda
+          if-no-files-found: error
+
   # ── Deploy to staging (only on main) ────────────────────────────────────────
   deploy-staging:
     name: Deploy to staging
     runs-on: ubuntu-24.04
-    needs: [build]
+    needs: [build, build-cli]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     environment: staging
     concurrency:
