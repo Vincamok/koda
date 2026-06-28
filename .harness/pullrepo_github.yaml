@@ -25,9 +25,9 @@ spec:
                 # Harness self-hosted — HTTPS sur le domaine public
                 HARNESS_GIT_HOST: "https://harness.vincz.fr"
                 # Chemin Git dans Harness Code (espace/repo)
-                HARNESS_GIT_PATH: "git/vincamok/koda"
+                HARNESS_GIT_PATH: "git/vincent/koda"
                 # Espace + repo pour l'API REST
-                HARNESS_API_REPO: "vincamok/koda"
+                HARNESS_API_REPO: "vincent/koda"
                 # Pipeline Harness à déclencher après le miroir
                 HARNESS_PIPELINE: "build"
 
