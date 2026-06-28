@@ -2,9 +2,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-koda}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}
-      POSTGRES_DB: ${POSTGRES_DB:-koda}
+      POSTGRES_USER: "${POSTGRES_USER:-koda}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requis}"
+      POSTGRES_DB: "${POSTGRES_DB:-koda}"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -18,7 +18,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: "redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -48,11 +48,11 @@ services:
   docker-socket-proxy:
     image: ghcr.io/tecnativa/docker-socket-proxy:latest
     environment:
-      CONTAINERS: 1
-      NETWORKS: 1
-      VOLUMES: 1
-      EXEC: 1
-      POST: 1
+      CONTAINERS: "1"
+      NETWORKS: "1"
+      VOLUMES: "1"
+      EXEC: "1"
+      POST: "1"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
@@ -63,43 +63,27 @@ services:
   api:
     image: harness.vincz.fr/vincent/koda/api:latest
     environment:
-      # Base de données / cache
-      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
-
-      # Réseau
+      DATABASE_URL: "postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379"
       LISTEN_ADDR: "0.0.0.0:8080"
-      APP_BASE_URL: ${APP_BASE_URL:?APP_BASE_URL requis (ex: https://koda.example.com)}
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-127.0.0.1/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
-
-      # Sécurité — générer avec : openssl rand -base64 64
-      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET requis}
-      # Clé AES-256-GCM pour SecretRef — 32 bytes hex : openssl rand -hex 32
-      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY:?SECRET_ENCRYPTION_KEY requis}
-
-      # Bootstrap super admin (première installation uniquement, vider ensuite)
-      BOOTSTRAP_SUPER_ADMIN_EMAIL: ${BOOTSTRAP_SUPER_ADMIN_EMAIL:-}
-
-      # OAuth — Google
-      OAUTH__GOOGLE__CLIENT_ID: ${OAUTH__GOOGLE__CLIENT_ID:-}
-      OAUTH__GOOGLE__CLIENT_SECRET: ${OAUTH__GOOGLE__CLIENT_SECRET:-}
-
-      # OAuth — GitHub
-      OAUTH__GITHUB__CLIENT_ID: ${OAUTH__GITHUB__CLIENT_ID:-}
-      OAUTH__GITHUB__CLIENT_SECRET: ${OAUTH__GITHUB__CLIENT_SECRET:-}
-
-      # OAuth — Authentik (OIDC)
-      OAUTH__AUTHENTIK__CLIENT_ID: ${OAUTH__AUTHENTIK__CLIENT_ID:-}
-      OAUTH__AUTHENTIK__CLIENT_SECRET: ${OAUTH__AUTHENTIK__CLIENT_SECRET:-}
-      OAUTH__AUTHENTIK__ISSUER_URL: ${OAUTH__AUTHENTIK__ISSUER_URL:-}
-
-      # IA
-      AI__ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      AI__OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-
-      # Observabilité
-      OTEL_ENDPOINT: ${OTEL_ENDPOINT:-}
-      SENTRY_DSN: ${SENTRY_DSN:-}
+      APP_BASE_URL: "${APP_BASE_URL:?APP_BASE_URL requis}"
+      TRUSTED_PROXY_CIDRS: "${TRUSTED_PROXY_CIDRS:-127.0.0.1/8,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"
+      # openssl rand -base64 64
+      SESSION_SECRET: "${SESSION_SECRET:?SESSION_SECRET requis}"
+      # openssl rand -hex 32
+      SECRET_ENCRYPTION_KEY: "${SECRET_ENCRYPTION_KEY:?SECRET_ENCRYPTION_KEY requis}"
+      BOOTSTRAP_SUPER_ADMIN_EMAIL: "${BOOTSTRAP_SUPER_ADMIN_EMAIL:-}"
+      OAUTH__GOOGLE__CLIENT_ID: "${OAUTH__GOOGLE__CLIENT_ID:-}"
+      OAUTH__GOOGLE__CLIENT_SECRET: "${OAUTH__GOOGLE__CLIENT_SECRET:-}"
+      OAUTH__GITHUB__CLIENT_ID: "${OAUTH__GITHUB__CLIENT_ID:-}"
+      OAUTH__GITHUB__CLIENT_SECRET: "${OAUTH__GITHUB__CLIENT_SECRET:-}"
+      OAUTH__AUTHENTIK__CLIENT_ID: "${OAUTH__AUTHENTIK__CLIENT_ID:-}"
+      OAUTH__AUTHENTIK__CLIENT_SECRET: "${OAUTH__AUTHENTIK__CLIENT_SECRET:-}"
+      OAUTH__AUTHENTIK__ISSUER_URL: "${OAUTH__AUTHENTIK__ISSUER_URL:-}"
+      AI__ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      AI__OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OTEL_ENDPOINT: "${OTEL_ENDPOINT:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     ports:
       - "8080:8080"
     depends_on:
@@ -121,20 +105,16 @@ services:
   orchestrator:
     image: harness.vincz.fr/vincent/koda/orchestrator:latest
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
-      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY}
-
-      # Docker
-      DOCKER_HOST: tcp://docker-socket-proxy:2375
-
-      # Workspaces
-      WORKSPACE_IMAGE: ${WORKSPACE_IMAGE:-ghcr.io/vincamok/koda/workspace:latest}
-      WORKSPACE_NETWORK: ${WORKSPACE_NETWORK:-koda-workspaces}
-      PERSONAL_VOLUME_PREFIX: ${PERSONAL_VOLUME_PREFIX:-koda-personal}
-      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
-      WORKSPACE_PORT: ${WORKSPACE_PORT:-8080}
-      SOZU_SOCKET: /var/run/sozu/koda.sock
+      DATABASE_URL: "postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379"
+      SECRET_ENCRYPTION_KEY: "${SECRET_ENCRYPTION_KEY}"
+      DOCKER_HOST: "tcp://docker-socket-proxy:2375"
+      WORKSPACE_IMAGE: "${WORKSPACE_IMAGE:-ghcr.io/vincamok/koda/workspace:latest}"
+      WORKSPACE_NETWORK: "${WORKSPACE_NETWORK:-koda-workspaces}"
+      PERSONAL_VOLUME_PREFIX: "${PERSONAL_VOLUME_PREFIX:-koda-personal}"
+      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}"
+      WORKSPACE_PORT: "${WORKSPACE_PORT:-8080}"
+      SOZU_SOCKET: "/var/run/sozu/koda.sock"
     volumes:
       - sozu_socket:/var/run/sozu
     depends_on:
@@ -150,19 +130,13 @@ services:
   worker:
     image: harness.vincz.fr/vincent/koda/worker:latest
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
-      SECRET_ENCRYPTION_KEY: ${SECRET_ENCRYPTION_KEY}
-
-      # Docker
-      DOCKER_HOST: tcp://docker-socket-proxy:2375
-
-      # IA (SAST, refactor, diff review)
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-
-      # Observabilité
-      LOKI_URL: ${LOKI_URL:-}
-      SENTRY_DSN: ${SENTRY_DSN:-}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379"
+      SECRET_ENCRYPTION_KEY: "${SECRET_ENCRYPTION_KEY}"
+      DOCKER_HOST: "tcp://docker-socket-proxy:2375"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      LOKI_URL: "${LOKI_URL:-}"
+      SENTRY_DSN: "${SENTRY_DSN:-}"
     depends_on:
       api:
         condition: service_healthy
@@ -176,14 +150,12 @@ services:
   git-manager:
     image: harness.vincz.fr/vincent/koda/git-manager:latest
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
-
-      # Stockage des volumes workspace sur l'hôte
-      WORKSPACE_VOLUMES_BASE: ${WORKSPACE_VOLUMES_BASE:-/var/lib/koda/workspaces}
-      CLONE_TIMEOUT_SECONDS: ${CLONE_TIMEOUT_SECONDS:-300}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379"
+      WORKSPACE_VOLUMES_BASE: "${WORKSPACE_VOLUMES_BASE:-/var/lib/koda/workspaces}"
+      CLONE_TIMEOUT_SECONDS: "${CLONE_TIMEOUT_SECONDS:-300}"
     volumes:
-      - workspaces_data:${WORKSPACE_VOLUMES_BASE:-/var/lib/koda/workspaces}
+      - workspaces_data:/var/lib/koda/workspaces
     depends_on:
       api:
         condition: service_healthy
@@ -195,12 +167,10 @@ services:
   gateway:
     image: harness.vincz.fr/vincent/koda/gateway:latest
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
-      SOZU_SOCKET: /var/run/sozu/koda.sock
-
-      # Domaine de base pour les routes sozu des workspaces
-      BASE_DOMAIN: ${BASE_DOMAIN:-localhost}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379"
+      SOZU_SOCKET: "/var/run/sozu/koda.sock"
+      BASE_DOMAIN: "${BASE_DOMAIN:-localhost}"
     volumes:
       - sozu_socket:/var/run/sozu
     depends_on:
@@ -216,10 +186,10 @@ services:
   mcp-gateway:
     image: harness.vincz.fr/vincent/koda/mcp-gateway:latest
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}
-      REDIS_URL: redis://:${REDIS_PASSWORD:-}@redis:6379
-      WORKER_ID: ${MCP_GATEWAY_WORKER_ID:-mcp-gateway-1}
-      DEAD_LETTER_MAX_ATTEMPTS: ${DEAD_LETTER_MAX_ATTEMPTS:-3}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-koda}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-koda}"
+      REDIS_URL: "redis://:${REDIS_PASSWORD:-}@redis:6379"
+      WORKER_ID: "${MCP_GATEWAY_WORKER_ID:-mcp-gateway-1}"
+      DEAD_LETTER_MAX_ATTEMPTS: "${DEAD_LETTER_MAX_ATTEMPTS:-3}"
     depends_on:
       api:
         condition: service_healthy
@@ -231,7 +201,7 @@ services:
   dashboard:
     image: harness.vincz.fr/vincent/koda/dashboard:latest
     environment:
-      NEXT_PUBLIC_API_URL: ${APP_BASE_URL}
+      NEXT_PUBLIC_API_URL: "${APP_BASE_URL}"
     ports:
       - "3001:3001"
     depends_on:
@@ -245,8 +215,8 @@ services:
   admin:
     image: harness.vincz.fr/vincent/koda/admin:latest
     environment:
-      NEXT_PUBLIC_API_URL: ${APP_BASE_URL}
-      API_URL: http://api:8080
+      NEXT_PUBLIC_API_URL: "${APP_BASE_URL}"
+      API_URL: "http://api:8080"
     ports:
       - "3002:3002"
     depends_on:
@@ -260,7 +230,7 @@ services:
   web-client:
     image: harness.vincz.fr/vincent/koda/web-client:latest
     environment:
-      NEXT_PUBLIC_API_URL: ${APP_BASE_URL}
+      NEXT_PUBLIC_API_URL: "${APP_BASE_URL}"
     ports:
       - "3003:3003"
     depends_on:
