@@ -1,0 +1,145 @@
+# Synchronise GitHub → Harness Code (self-hosted).
+# API Harness Code : https://harness.vincz.fr/swagger
+# Git (clone par les pipelines CI) : https://harness.vincz.fr/git/vincamok/koda
+#
+# Secrets requis dans Harness :
+#   harness_user   — identifiant Harness (email ou username)
+#   harness_token  — PAT Harness avec scope artifact_registry_write + repo_push
+#   github_token   — GitHub PAT avec scope repo:read (ou GITHUB_TOKEN Actions)
+#
+# Exécuter ce pipeline avant build/security (manuel, cron ou webhook GitHub).
+kind: pipeline
+spec:
+  stages:
+    - name: sync-github-to-harness
+      type: ci
+      spec:
+        cloneCodebase: false
+        steps:
+          - name: mirror-repository
+            type: run
+            spec:
+              container: alpine/git
+              shell: sh
+              envs:
+                # Harness self-hosted — HTTPS sur le domaine public
+                HARNESS_GIT_HOST: "https://harness.vincz.fr"
+                # Chemin Git dans Harness Code (espace/repo)
+                HARNESS_GIT_PATH: "git/vincamok/koda"
+                # Espace + repo pour l'API REST
+                HARNESS_API_REPO: "vincamok/koda"
+                # Pipeline Harness à déclencher après le miroir
+                HARNESS_PIPELINE: "build"
+
+                HARNESS_USER:   ${{ secrets.get('harness_user') }}
+                HARNESS_TOKEN:  ${{ secrets.get('harness_token') }}
+                GITHUB_TOKEN:   ${{ secrets.get('github_token') }}
+
+              script: |
+                set -euo pipefail
+
+                git config --global user.name  "Harness Sync Bot"
+                git config --global user.email "sync@harness.local"
+
+                # git credential store supporte les URLs complètes (contrairement à .netrc
+                # qui ignore le port sur certaines implémentations).
+                git config --global credential.helper store
+
+                HARNESS_HOST="${HARNESS_GIT_HOST#https://}"
+
+                {
+                  printf 'https://x-access-token:%s@github.com\n'   "${GITHUB_TOKEN}"
+                  printf 'https://%s:%s@%s\n' "${HARNESS_USER}" "${HARNESS_TOKEN}" "${HARNESS_HOST}"
+                } > "${HOME}/.git-credentials"
+                chmod 600 "${HOME}/.git-credentials"
+
+                GITHUB_URL="https://github.com/vincamok/koda.git"
+
+                # Attendre la propagation GitHub : le webhook peut arriver avant que tous
+                # les edge servers GitHub aient le nouveau commit — sans ce délai,
+                # ls-remote et le clone peuvent renvoyer l'ancien SHA (faux "match").
+                echo "==> Attente propagation GitHub (20s)..."
+                sleep 20
+
+                # SHA attendu sur GitHub (HEAD de main).
+                echo "==> SHA attendu depuis GitHub..."
+                EXPECTED_SHA=$(git ls-remote "${GITHUB_URL}" HEAD | cut -f1)
+                echo "    HEAD attendu : ${EXPECTED_SHA}"
+
+                cd /tmp
+                rm -rf repo-mirror
+
+                MAX_ATTEMPTS=5
+                attempt=0
+                while [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; do
+                  attempt=$((attempt + 1))
+                  echo "==> Clone miroir depuis GitHub (tentative ${attempt}/${MAX_ATTEMPTS})..."
+                  git clone --mirror "${GITHUB_URL}" repo-mirror
+
+                  ACTUAL_SHA=$(git -C repo-mirror rev-parse HEAD)
+                  echo "    HEAD obtenu  : ${ACTUAL_SHA}"
+
+                  if [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ]; then
+                    echo "    SHA vérifié — clone à jour."
+                    break
+                  fi
+
+                  echo "    AVERTISSEMENT : SHA différent (propagation GitHub en cours)."
+                  rm -rf repo-mirror
+
+                  if [ "${attempt}" -ge "${MAX_ATTEMPTS}" ]; then
+                    echo "    Échec après ${MAX_ATTEMPTS} tentatives — abandon."
+                    exit 1
+                  fi
+
+                  WAIT=$((attempt * 15))
+                  echo "    Nouvelle tentative dans ${WAIT}s..."
+                  sleep "${WAIT}"
+                done
+
+                cd repo-mirror
+
+                HARNESS_PUSH_URL="${HARNESS_GIT_HOST}/${HARNESS_GIT_PATH}.git"
+                git remote add harness-push "${HARNESS_PUSH_URL}"
+
+                echo "==> Push miroir vers ${HARNESS_PUSH_URL} ..."
+                git push --prune harness-push \
+                  "+refs/heads/*:refs/heads/*" \
+                  "+refs/tags/*:refs/tags/*"
+
+                # Vérification post-push : le SHA sur Harness doit correspondre.
+                HARNESS_SHA=$(git ls-remote harness-push HEAD | cut -f1)
+                if [ "${HARNESS_SHA}" != "${EXPECTED_SHA}" ]; then
+                  echo "ERREUR: SHA Harness (${HARNESS_SHA}) != SHA attendu (${EXPECTED_SHA})" >&2
+                  exit 1
+                fi
+
+                echo "==> Branches présentes sur Harness Code :"
+                git ls-remote harness-push 'refs/heads/*' | head -20
+
+                echo "==> Synchronisation terminée (${EXPECTED_SHA})."
+
+                # Laisser Harness indexer le push avant de déclencher le build.
+                echo "==> Attente indexation Harness (10s)..."
+                sleep 10
+
+                # Déclencher le pipeline build via l'API REST Harness Code.
+                echo "==> Déclenchement du pipeline '${HARNESS_PIPELINE}'..."
+                apk add --no-cache curl -q
+
+                API_URL="${HARNESS_GIT_HOST}/api/v1/repos/${HARNESS_API_REPO}/pipelines/${HARNESS_PIPELINE}/executions"
+
+                HTTP_STATUS=$(curl -s -o /tmp/build_resp.json -w "%{http_code}" \
+                  -X POST "${API_URL}" \
+                  -H "Authorization: Bearer ${HARNESS_TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"branch\":\"main\"}")
+
+                echo "==> HTTP ${HTTP_STATUS}"
+                cat /tmp/build_resp.json
+
+                if [ "${HTTP_STATUS}" != "200" ] && [ "${HTTP_STATUS}" != "201" ]; then
+                  echo "AVERTISSEMENT: déclenchement build échoué (HTTP ${HTTP_STATUS})" >&2
+                fi
+
+                echo "==> Pipeline build déclenché."
