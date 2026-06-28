@@ -7,6 +7,10 @@
 
 ## [Unreleased]
 
+---
+
+## [0.4.1] — 2026-06-28 · Phase 3 — Correctifs & complétions pipelines
+
 ### Added
 - OpenAPI 3.1 / Swagger UI : `utoipa` v4 + `utoipa-swagger-ui` v7 montés sur `/swagger-ui` et `/api-docs/openapi.json` — endpoints documentés, sécurité cookie session, 15 tags
 - `rate_limit_middleware` branché en layer global : 300 req/min par IP, 600 req/min par utilisateur authentifié, Redis sliding window INCR + EXPIRE
