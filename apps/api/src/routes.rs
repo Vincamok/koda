@@ -8,7 +8,7 @@ use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
-    handlers::{admin, auth, git, ide, mcp, mfa, orgs, personal, pipelines, quota, security_policy, teams, tokens, user_settings, workspace_notes, workspaces, ws_terminal},
+    handlers::{admin, auth, env_vars, git, ide, mcp, mfa, orgs, personal, pipelines, quota, security_policy, teams, tickets, tokens, user_settings, workspace_notes, workspaces, ws_terminal},
     middleware::auth::{require_auth, require_super_admin, with_org_context},
     middleware::rate_limit::rate_limit_middleware,
     middleware::request_id::request_id_layer,
@@ -100,6 +100,18 @@ where
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/webhook-events", get(pipelines::get_webhook_events))
         // Security reports
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/security-reports", get(pipelines::get_security_reports))
+        // Workspace fork
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/fork", post(workspaces::post_workspace_fork))
+        // Workspace env vars
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/env", get(env_vars::get_env_vars))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/env", post(env_vars::post_env_var))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/env/:key", put(env_vars::put_env_var))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/env/:key", delete(env_vars::delete_env_var))
+        // Workspace tickets
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/tickets", get(tickets::get_workspace_tickets))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/tickets", post(tickets::post_workspace_ticket))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/tickets/:ticket_id", patch(tickets::patch_workspace_ticket))
+        .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/tickets/:ticket_id", delete(tickets::delete_workspace_ticket))
         // Workspace snapshots
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", get(workspaces::get_workspace_snapshots))
         .route("/api/v1/organizations/:org_id/workspaces/:workspace_id/snapshots", post(workspaces::post_workspace_snapshot))

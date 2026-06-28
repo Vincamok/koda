@@ -1,5 +1,6 @@
 pub mod admin;
 pub mod auth;
+pub mod env_vars;
 pub mod git;
 pub mod ide;
 pub mod mcp;
@@ -10,6 +11,7 @@ pub mod pipelines;
 pub mod quota;
 pub mod security_policy;
 pub mod teams;
+pub mod tickets;
 pub mod tokens;
 pub mod user_settings;
 pub mod workspace_notes;

@@ -9,6 +9,20 @@
 
 ---
 
+## [1.0.1] — 2026-06-28 · Workspace Fork, Env Vars, Ticket Records
+
+### Added
+- **Workspace Fork** : `POST /api/v1/organizations/:org_id/workspaces/:workspace_id/fork` — clone d'un workspace (nom `-fork`, même cpu/ram, copie git config + enqueue clone job)
+- **Migration** `202600010044_workspace_fork_create.sql` : colonne `forked_from UUID` sur la table `workspaces`
+- **Environment Variables Manager** : `GET|POST /env`, `PUT|DELETE /env/:key` — valeurs chiffrées AES-256-GCM, masquage `"***"` pour les secrets, RLS activé
+- **Migration** `202600010045_workspace_env_vars_create.sql` : table `workspace_env_vars` (clé unique par workspace, nonce séparé, `is_secret`)
+- **TicketRecord API** : `GET|POST /tickets`, `PATCH|DELETE /tickets/:ticket_id` — statuts (open/in_progress/closed), priorités, lien externe (jira/linear/github/gitlab/notion)
+- **Migration** `202600010046_ticket_records_create.sql` : table `ticket_records` avec RLS
+- **TypeScript** : type `WorkspaceEnvVar` dans `packages/shared-types`
+- **API client dashboard** : `forkWorkspace`, `listEnvVars`, `createEnvVar`, `updateEnvVar`, `deleteEnvVar`, `listTickets`, `createTicket`, `updateTicket`, `deleteTicket`
+
+---
+
 ## [0.4.5] — 2026-06-28 · CI/CD complet — Phase 0 finalisée
 
 ### Added

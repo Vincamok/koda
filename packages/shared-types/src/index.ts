@@ -383,3 +383,15 @@ export interface PersonalFile {
   path: string
   content: string
 }
+
+// ── Workspace env vars ────────────────────────────────────────────────────────
+
+export interface WorkspaceEnvVar {
+  id: string
+  workspace_id: string
+  key: string
+  value: string
+  is_secret: boolean
+  created_at: string
+  updated_at: string
+}

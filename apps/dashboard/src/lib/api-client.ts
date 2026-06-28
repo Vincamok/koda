@@ -18,6 +18,8 @@ import type {
   AiProviderConfig,
   OrgQuotaUsage,
   KodaInstance,
+  WorkspaceEnvVar,
+  TicketRecord,
 } from '@koda/shared-types'
 
 const API_BASE_URL =
@@ -315,4 +317,107 @@ export function updateUserSettings(
   data: Partial<Pick<UserSettings, 'locale' | 'theme_id'>>,
 ): Promise<UserSettings> {
   return patch<UserSettings>('/api/v1/me/settings', data)
+}
+
+// ── Workspace Fork ────────────────────────────────────────────────────────────
+
+export function forkWorkspace(orgId: string, workspaceId: string): Promise<Workspace> {
+  return post<Workspace>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/fork`,
+  )
+}
+
+// ── Environment Variables ─────────────────────────────────────────────────────
+
+export function listEnvVars(orgId: string, workspaceId: string): Promise<WorkspaceEnvVar[]> {
+  return get<WorkspaceEnvVar[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/env`,
+  )
+}
+
+export function createEnvVar(
+  orgId: string,
+  workspaceId: string,
+  data: { key: string; value: string; is_secret: boolean },
+): Promise<WorkspaceEnvVar> {
+  return post<WorkspaceEnvVar>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/env`,
+    data,
+  )
+}
+
+export function updateEnvVar(
+  orgId: string,
+  workspaceId: string,
+  key: string,
+  value: string,
+): Promise<WorkspaceEnvVar> {
+  return put<WorkspaceEnvVar>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/env/${encodeURIComponent(key)}`,
+    { value },
+  )
+}
+
+export function deleteEnvVar(
+  orgId: string,
+  workspaceId: string,
+  key: string,
+): Promise<void> {
+  return del<void>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/env/${encodeURIComponent(key)}`,
+  )
+}
+
+// ── Tickets ───────────────────────────────────────────────────────────────────
+
+export function listTickets(orgId: string, workspaceId: string): Promise<TicketRecord[]> {
+  return get<TicketRecord[]>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/tickets`,
+  )
+}
+
+export function createTicket(
+  orgId: string,
+  workspaceId: string,
+  data: {
+    title: string
+    description?: string
+    status?: TicketRecord['status']
+    priority?: TicketRecord['priority']
+    external_url?: string
+    external_system?: TicketRecord['external_system']
+  },
+): Promise<TicketRecord> {
+  return post<TicketRecord>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/tickets`,
+    data,
+  )
+}
+
+export function updateTicket(
+  orgId: string,
+  workspaceId: string,
+  ticketId: string,
+  data: {
+    title?: string
+    description?: string
+    status?: TicketRecord['status']
+    priority?: TicketRecord['priority']
+    external_url?: string
+  },
+): Promise<TicketRecord> {
+  return patch<TicketRecord>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/tickets/${ticketId}`,
+    data,
+  )
+}
+
+export function deleteTicket(
+  orgId: string,
+  workspaceId: string,
+  ticketId: string,
+): Promise<void> {
+  return del<void>(
+    `/api/v1/organizations/${orgId}/workspaces/${workspaceId}/tickets/${ticketId}`,
+  )
 }

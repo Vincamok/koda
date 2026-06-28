@@ -690,6 +690,143 @@ pub async fn get_workspace_events(
     Sse::new(ReceiverStream::new(rx)).keep_alive(KeepAlive::default())
 }
 
+// ── POST /organizations/:org_id/workspaces/:workspace_id/fork ─────────────────
+
+pub async fn post_workspace_fork(
+    State(mut state): State<AppState>,
+    Extension(auth): Extension<AuthUser>,
+    Extension(org): Extension<OrgContext>,
+    Path((_org_id, workspace_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    let caller_role = auth.org_role.as_deref().unwrap_or("");
+    if !["owner", "admin", "member", "super_admin"].contains(&caller_role) {
+        return Err(AppError::Forbidden("insufficient role".into()));
+    }
+
+    // Fetch source workspace, verify org ownership and that it is not closed
+    let src = sqlx::query!(
+        r#"SELECT id, organization_id, name, status, cpu_limit, ram_limit_mb
+           FROM workspaces
+           WHERE id = $1 AND organization_id = $2"#,
+        workspace_id,
+        org.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if src.status == "closed" {
+        return Err(AppError::BadRequest("cannot fork a closed workspace".into()));
+    }
+
+    // Fetch git config if present
+    let git_cfg = sqlx::query!(
+        r#"SELECT id, repo_url, branch, ssh_key_secret_ref_id
+           FROM workspace_git_configs
+           WHERE workspace_id = $1
+           LIMIT 1"#,
+        src.id,
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+
+    // Enforce quota
+    let quota = sqlx::query!(
+        "SELECT max_workspaces FROM organization_quotas WHERE organization_id = $1",
+        org.id
+    )
+    .fetch_optional(&state.pool)
+    .await?;
+    let max_ws = quota.map(|q| q.max_workspaces).unwrap_or(10);
+    let current_count: i64 = sqlx::query_scalar!(
+        "SELECT COUNT(*) FROM workspaces WHERE organization_id = $1 AND status != 'closed'",
+        org.id
+    )
+    .fetch_one(&state.pool)
+    .await?
+    .unwrap_or(0);
+    if current_count >= max_ws as i64 {
+        return Err(AppError::QuotaExceeded("workspace limit reached".into()));
+    }
+
+    let fork_name = format!("{}-fork", src.name);
+    let uid = generate_uid(org.id);
+
+    let ws = sqlx::query!(
+        r#"INSERT INTO workspaces
+               (uid, organization_id, created_by, name, cpu_limit, ram_limit_mb, forked_from)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING id, uid, organization_id, project_id, name, status, cpu_limit, ram_limit_mb,
+                     pids_limit, created_by, created_at, updated_at"#,
+        uid,
+        org.id,
+        auth.id,
+        fork_name,
+        src.cpu_limit,
+        src.ram_limit_mb,
+        src.id,
+    )
+    .fetch_one(&state.pool)
+    .await?;
+
+    if let Some(gc) = git_cfg {
+        let branch = gc.branch.unwrap_or_else(|| "main".into());
+        let new_gc = sqlx::query!(
+            r#"INSERT INTO workspace_git_configs
+                   (workspace_id, repo_url, branch, ssh_key_secret_ref_id)
+               VALUES ($1, $2, $3, $4)
+               RETURNING id"#,
+            ws.id,
+            gc.repo_url,
+            branch,
+            gc.ssh_key_secret_ref_id,
+        )
+        .fetch_one(&state.pool)
+        .await?;
+
+        sqlx::query!(
+            "UPDATE workspaces SET status = 'cloning', updated_at = NOW() WHERE id = $1",
+            ws.id
+        )
+        .execute(&state.pool)
+        .await?;
+
+        let job = crate::jobs::GitJob::CloneRepo {
+            workspace_id: ws.id,
+            git_config_id: new_gc.id,
+            repo_url: gc.repo_url,
+            branch,
+            ssh_key_secret_ref_id: gc.ssh_key_secret_ref_id,
+        };
+        publish_job(&mut state.redis, crate::jobs::STREAM_GIT, &job).await?;
+        tracing::info!(workspace_id = %ws.id, forked_from = %src.id, "enqueued clone job for fork");
+    } else {
+        sqlx::query!(
+            "UPDATE workspaces SET status = 'ready', updated_at = NOW() WHERE id = $1",
+            ws.id
+        )
+        .execute(&state.pool)
+        .await?;
+    }
+
+    let resp = WorkspaceResponse {
+        id: ws.id,
+        uid: ws.uid,
+        organization_id: ws.organization_id,
+        project_id: ws.project_id,
+        name: ws.name,
+        status: ws.status,
+        cpu_limit: ws.cpu_limit,
+        ram_limit_mb: ws.ram_limit_mb,
+        pids_limit: ws.pids_limit,
+        created_by: ws.created_by,
+        created_at: ws.created_at,
+        updated_at: ws.updated_at,
+    };
+
+    Ok((axum::http::StatusCode::CREATED, Json(serde_json::json!({ "data": resp }))))
+}
+
 // ── GET /api/v1/workspaces/:uid/ssh ──────────────────────────────────────────
 // Returns the SSH host + port assigned by sozu for koda connect.
 
