@@ -58,7 +58,7 @@ spec:
                 # Attendre la propagation GitHub : le webhook peut arriver avant que tous
                 # les edge servers GitHub aient le nouveau commit — sans ce délai,
                 # ls-remote et le clone peuvent renvoyer l'ancien SHA (faux "match").
-                echo "==> Attente propagation GitHub (20s)..."
+                echo "==> Attente propagation GitHub (10s)..."
                 sleep 10
 
                 # SHA attendu sur GitHub (HEAD de main).
