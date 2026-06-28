@@ -71,7 +71,7 @@ export function Sidebar({ locale }: SidebarProps) {
               href={item.href}
               onClick={() => setMobileOpen(false)}
               className={cn(
-                'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors min-h-[44px]',
                 isActive
                   ? 'bg-koda-primary/15 text-koda-primary font-medium'
                   : 'text-koda-text-muted hover:bg-koda-surface-raised hover:text-koda-text',
@@ -86,7 +86,7 @@ export function Sidebar({ locale }: SidebarProps) {
 
       {/* Footer */}
       <div className="p-3 border-t border-koda-border">
-        <p className="text-xs text-koda-text-muted px-3">Koda v0.1.0</p>
+        <p className="text-xs text-koda-text-muted px-3">Koda v0.4.0</p>
       </div>
     </aside>
   )
@@ -107,7 +107,7 @@ export function Sidebar({ locale }: SidebarProps) {
         <Menu className="h-5 w-5" />
       </button>
 
-      {/* Mobile overlay */}
+      {/* Mobile overlay + slide-in drawer */}
       {mobileOpen && (
         <>
           <div
@@ -115,9 +115,9 @@ export function Sidebar({ locale }: SidebarProps) {
             onClick={() => setMobileOpen(false)}
           />
           <div className="md:hidden fixed inset-y-0 left-0 z-50 flex">
-            <div className="relative">
+            <div className="relative shadow-2xl">
               <button
-                className="absolute top-3.5 right-3 rounded-md p-1.5 text-koda-text-muted hover:text-koda-text hover:bg-koda-surface-raised transition-colors"
+                className="absolute top-3.5 right-3 rounded-md p-1.5 text-koda-text-muted hover:text-koda-text hover:bg-koda-surface-raised transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                 onClick={() => setMobileOpen(false)}
                 aria-label="Close menu"
               >

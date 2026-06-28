@@ -118,13 +118,13 @@ export default async function WorkspaceDetailPage({ params, searchParams }: Prop
           Workspaces
         </Link>
 
-        {/* Tab bar */}
-        <div className="flex gap-1 border-b border-koda-border">
+        {/* Tab bar — scrollable horizontally on mobile */}
+        <div className="flex border-b border-koda-border overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {tabs.map((t) => (
             <Link
               key={t.key}
               href={`/${locale}/workspaces/${id}?tab=${t.key}`}
-              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              className={`flex shrink-0 items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 tab === t.key
                   ? 'border-koda-accent text-koda-accent'
                   : 'border-transparent text-koda-text-muted hover:text-koda-text'

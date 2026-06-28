@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useToast } from '@/components/ui/toast'
+import { BottomNav } from '@/components/layout/bottom-nav'
 
 interface NewWorkspacePageProps {
   params: { locale: string }
@@ -77,9 +78,9 @@ export default function NewWorkspacePage({ params: { locale } }: NewWorkspacePag
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-koda-surface">
+    <div className="flex min-h-[100dvh] flex-col bg-koda-surface">
       {/* Top bar */}
-      <div className="flex h-14 items-center border-b border-koda-border px-6">
+      <div className="flex h-14 items-center border-b border-koda-border px-4 sm:px-6">
         <Link
           href={`/${locale}/workspaces`}
           className="flex items-center gap-2 text-sm text-koda-text-muted hover:text-koda-text transition-colors"
@@ -90,7 +91,7 @@ export default function NewWorkspacePage({ params: { locale } }: NewWorkspacePag
       </div>
 
       {/* Form */}
-      <div className="flex flex-1 items-start justify-center p-6">
+      <div className="flex flex-1 items-start justify-center p-4 sm:p-6 pb-24 sm:pb-6">
         <div className="w-full max-w-lg">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-koda-text">{t('title')}</h1>
@@ -163,31 +164,32 @@ export default function NewWorkspacePage({ params: { locale } }: NewWorkspacePag
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-3 pt-2">
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                disabled={loading}
-                className="flex-1"
-              >
-                {loading ? t('submitting') : t('submit')}
-              </Button>
-              <Link href={`/${locale}/workspaces`} className="flex-1">
+            <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 pt-2">
+              <Link href={`/${locale}/workspaces`} className="sm:flex-1">
                 <Button
                   type="button"
                   variant="secondary"
                   size="md"
                   disabled={loading}
-                  className="w-full"
+                  className="w-full min-h-[44px]"
                 >
                   {t('cancel')}
                 </Button>
               </Link>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                disabled={loading}
+                className="sm:flex-1 min-h-[44px]"
+              >
+                {loading ? t('submitting') : t('submit')}
+              </Button>
             </div>
           </form>
         </div>
       </div>
+      <BottomNav locale={locale} />
     </div>
   )
 }

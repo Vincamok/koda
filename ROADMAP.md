@@ -77,7 +77,7 @@ Créer un workspace, cloner un repo, lancer un container, accéder via URL.
 - [x] SSE : `GET /api/v1/organizations/:org_id/workspaces/:workspace_id/events` (transitions de statut)
 - [x] Dashboard : liste workspaces + formulaire création
 - [x] Dashboard : statut temps réel (EventSource + `WorkspaceStatusLive`)
-- [ ] Dashboard multi-device : responsive mobile-first, détection breakpoints
+- [x] Dashboard multi-device : responsive mobile-first, détection breakpoints
 - [x] `WorkspaceVolume` : migration + montage dans HostConfig
 - [x] `WorkspaceShare` : partage ad-hoc (editor|reviewer|viewer), expiration
 

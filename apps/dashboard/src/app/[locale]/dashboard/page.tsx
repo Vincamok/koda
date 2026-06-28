@@ -19,15 +19,15 @@ export default async function DashboardPage({
   const wt = await getTranslations('workspace')
   const user = await getSession()
 
+  const orgId = 'default' // TODO: persist org_id in session
+
   let workspaces: Workspace[] = []
   let totalWorkspaces = 0
   let activeWorkspaces = 0
 
   if (user) {
     try {
-      // Fetch workspaces for the first org available on user's account
-      // In a real app this would use user's active org from session/cookie
-      const page = await listWorkspaces('default')
+      const page = await listWorkspaces(orgId)
       workspaces = page.data.slice(0, 6) // Show at most 6 recent
       totalWorkspaces = page.data.length
       activeWorkspaces = page.data.filter(
@@ -111,7 +111,7 @@ export default async function DashboardPage({
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {workspaces.map((ws) => (
-              <WorkspaceCard key={ws.id} workspace={ws} locale={locale} />
+              <WorkspaceCard key={ws.id} workspace={ws} locale={locale} orgId={orgId} />
             ))}
           </div>
         )}
