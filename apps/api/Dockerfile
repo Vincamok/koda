@@ -2,6 +2,9 @@ FROM rust:1.88-slim AS builder
 
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 
+# Limiter le parallélisme pour éviter l'OOM sur les petits runners
+ENV CARGO_BUILD_JOBS=2
+
 WORKDIR /build
 
 # Fetch dependencies first (layer cache)
