@@ -73,7 +73,7 @@ validator = { version = "0.18", features = ["derive"] }
 aes-gcm = "0.10"
 
 # TOTP
-totp-rs = { version = "5" }
+totp-rs = { version = "5", features = ["otpauth"] }
 
 # Crypto
 sha2 = "0.10"

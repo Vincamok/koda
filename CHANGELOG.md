@@ -9,6 +9,13 @@
 
 ---
 
+## [1.1.7] — 2026-06-29 · Fix totp-rs otpauth feature manquante
+
+### Fixed
+- `Cargo.toml` : `totp-rs` features `["qr"]` → `["otpauth"]` — la suppression de `qr` avait retiré implicitement `otpauth`, cassant `TOTP::new()` (7 args) et `get_url()` dans `mfa.rs`
+
+---
+
 ## [1.1.6] — 2026-06-29 · Élimination de tous les crates edition2024 compilés sur Linux
 
 ### Fixed
