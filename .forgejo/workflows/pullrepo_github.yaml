@@ -1,0 +1,151 @@
+# Synchronise GitHub → Forgejo (self-hosted).
+#
+# Secrets requis dans Forgejo (Settings → Secrets) :
+#   forgejo_user   — identifiant Forgejo (username)
+#   forgejo_token  — PAT Forgejo avec scope write:repository + write:actionsworkflow
+#   github_token   — GitHub PAT avec scope repo:read (ou GITHUB_TOKEN Actions)
+#
+# Déclenchement :
+#   - Manuel :  Forgejo → Actions → "Run workflow"
+#   - Webhook : depuis GitHub, créer un webhook pointant vers
+#               https://<forgejo_host>/api/v1/repos/<owner>/<repo>/actions/workflows/pullrepo_github.yaml/dispatches
+#               avec Content-Type: application/json et body: {"ref":"main"}
+#               et le header Authorization: token <forgejo_token>
+
+name: "Sync GitHub → Forgejo"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/30 * * * *"   # secours : resync toutes les 30 min
+
+jobs:
+  sync-github-to-forgejo:
+    runs-on: ubuntu-latest   # remplacer par le label de ton runner Forgejo si self-hosted
+
+    container:
+      image: alpine/git
+
+    env:
+      # Forgejo self-hosted — adapter le domaine si nécessaire
+      FORGEJO_HOST:     "https://forgejo.vincz.fr"
+      # Chemin Git : <owner>/<repo>
+      FORGEJO_GIT_PATH: "vincamok/koda"
+      # Même valeur, utilisée pour l'API REST
+      FORGEJO_API_REPO: "vincamok/koda"
+      # Workflow Forgejo à déclencher après le push miroir
+      BUILD_WORKFLOW:   "build.yaml"
+
+    steps:
+      - name: mirror-repository
+        env:
+          FORGEJO_USER:  ${{ secrets.forgejo_user }}
+          FORGEJO_TOKEN: ${{ secrets.forgejo_token }}
+          GITHUB_TOKEN:  ${{ secrets.github_token }}
+        run: |
+          set -euo pipefail
+
+          git config --global user.name  "Forgejo Sync Bot"
+          git config --global user.email "sync@forgejo.local"
+
+          # git credential store supporte les URLs complètes (contrairement à .netrc
+          # qui ignore le port sur certaines implémentations).
+          git config --global credential.helper store
+
+          FORGEJO_HOST_BARE="${FORGEJO_HOST#https://}"
+
+          {
+            printf 'https://x-access-token:%s@github.com\n'      "${GITHUB_TOKEN}"
+            printf 'https://%s:%s@%s\n' "${FORGEJO_USER}" "${FORGEJO_TOKEN}" "${FORGEJO_HOST_BARE}"
+          } > "${HOME}/.git-credentials"
+          chmod 600 "${HOME}/.git-credentials"
+
+          GITHUB_URL="https://github.com/vincamok/koda.git"
+
+          # Attendre la propagation GitHub : le webhook peut arriver avant que tous
+          # les edge servers GitHub aient le nouveau commit — sans ce délai,
+          # ls-remote et le clone peuvent renvoyer l'ancien SHA (faux "match").
+          echo "==> Attente propagation GitHub (10s)..."
+          sleep 10
+
+          echo "==> SHA attendu depuis GitHub..."
+          EXPECTED_SHA=$(git ls-remote "${GITHUB_URL}" HEAD | cut -f1)
+          echo "    HEAD attendu : ${EXPECTED_SHA}"
+
+          cd /tmp
+          rm -rf repo-mirror
+
+          MAX_ATTEMPTS=5
+          attempt=0
+          while [ "${attempt}" -lt "${MAX_ATTEMPTS}" ]; do
+            attempt=$((attempt + 1))
+            echo "==> Clone miroir depuis GitHub (tentative ${attempt}/${MAX_ATTEMPTS})..."
+            git clone --mirror "${GITHUB_URL}" repo-mirror
+
+            ACTUAL_SHA=$(git -C repo-mirror rev-parse HEAD)
+            echo "    HEAD obtenu  : ${ACTUAL_SHA}"
+
+            if [ "${ACTUAL_SHA}" = "${EXPECTED_SHA}" ]; then
+              echo "    SHA vérifié — clone à jour."
+              break
+            fi
+
+            echo "    AVERTISSEMENT : SHA différent (propagation GitHub en cours)."
+            rm -rf repo-mirror
+
+            if [ "${attempt}" -ge "${MAX_ATTEMPTS}" ]; then
+              echo "    Échec après ${MAX_ATTEMPTS} tentatives — abandon."
+              exit 1
+            fi
+
+            WAIT=$((attempt * 15))
+            echo "    Nouvelle tentative dans ${WAIT}s..."
+            sleep "${WAIT}"
+          done
+
+          cd repo-mirror
+
+          FORGEJO_PUSH_URL="${FORGEJO_HOST}/${FORGEJO_GIT_PATH}.git"
+          git remote add forgejo-push "${FORGEJO_PUSH_URL}"
+
+          echo "==> Push miroir vers ${FORGEJO_PUSH_URL} ..."
+          git push --prune forgejo-push \
+            "+refs/heads/*:refs/heads/*" \
+            "+refs/tags/*:refs/tags/*"
+
+          # Vérification post-push : le SHA sur Forgejo doit correspondre.
+          FORGEJO_SHA=$(git ls-remote forgejo-push HEAD | cut -f1)
+          if [ "${FORGEJO_SHA}" != "${EXPECTED_SHA}" ]; then
+            echo "ERREUR: SHA Forgejo (${FORGEJO_SHA}) != SHA attendu (${EXPECTED_SHA})" >&2
+            exit 1
+          fi
+
+          echo "==> Branches présentes sur Forgejo :"
+          git ls-remote forgejo-push 'refs/heads/*' | head -20
+
+          echo "==> Synchronisation terminée (${EXPECTED_SHA})."
+
+          # Laisser Forgejo indexer le push avant de déclencher le build.
+          echo "==> Attente indexation Forgejo (10s)..."
+          sleep 10
+
+          # Déclencher le workflow build via l'API REST Forgejo.
+          echo "==> Déclenchement du workflow '${BUILD_WORKFLOW}'..."
+          apk add --no-cache curl -q
+
+          API_URL="${FORGEJO_HOST}/api/v1/repos/${FORGEJO_API_REPO}/actions/workflows/${BUILD_WORKFLOW}/dispatches"
+
+          HTTP_STATUS=$(curl -s -o /tmp/build_resp.json -w "%{http_code}" \
+            -X POST "${API_URL}" \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"ref\":\"main\"}")
+
+          echo "==> HTTP ${HTTP_STATUS}"
+          cat /tmp/build_resp.json
+
+          if [ "${HTTP_STATUS}" != "200" ] && [ "${HTTP_STATUS}" != "201" ] && [ "${HTTP_STATUS}" != "204" ]; then
+            echo "AVERTISSEMENT: déclenchement build échoué (HTTP ${HTTP_STATUS})" >&2
+          fi
+
+          echo "==> Workflow build déclenché."

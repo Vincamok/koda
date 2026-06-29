@@ -9,6 +9,13 @@
 
 ---
 
+## [1.1.8] — 2026-06-29 · Workflow Forgejo pour sync GitHub
+
+### Added
+- `.forgejo/workflows/pullrepo_github.yaml` : portage du pipeline Harness `pullrepo_github.yaml` au format Forgejo Actions (compatible GitHub Actions) — même logique de miroir git + vérification SHA + déclenchement du workflow build via l'API REST Forgejo
+
+---
+
 ## [1.1.7] — 2026-06-29 · Fix totp-rs otpauth feature manquante
 
 ### Fixed
