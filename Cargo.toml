@@ -73,7 +73,7 @@ validator = { version = "0.18", features = ["derive"] }
 aes-gcm = "0.10"
 
 # TOTP
-totp-rs = { version = "5", features = ["qr"] }
+totp-rs = { version = "5" }
 
 # Crypto
 sha2 = "0.10"
@@ -92,4 +92,4 @@ sentry-tower = { version = "0.34", features = ["http"] }
 
 # OpenAPI
 utoipa = { version = "4", features = ["axum_extras", "uuid", "time"] }
-utoipa-swagger-ui = { version = "7", features = ["axum"] }
+utoipa-swagger-ui = { version = "6", features = ["axum"] }

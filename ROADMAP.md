@@ -244,3 +244,9 @@ Sécurité renforcée, observabilité, tests E2E, audit.
 - [x] `themeRegistry.loadFromUrl()` marketplace de thèmes (HTTPS fetch + upsert DB)
 - [x] **Multi-instances avancé** : migration d'org + load balancing (`admin_migrate_org`, `admin_instance_load_balance`)
 - [x] **Marketplace de plugins** workspace (submit, approve, install, uninstall)
+
+### v1.1.6 (patch — stabilisation CI)
+- [x] Suppression de la feature `qr` de `totp-rs` (non utilisée — évite la chaîne `image → moxcms → pxfm` edition2024)
+- [x] Downgrade `utoipa-swagger-ui` 7 → 6 (brise la chaîne `zip → proc-macro-crate` edition2024)
+- [x] Downgrade 7 crates edition2024 dans `Cargo.lock` : `base64ct`, `clap` (4 crates), `home`, `idna_adapter`, `rmp`, `rmp-serde`
+- [x] 0 crate edition2024 compilé sur Linux x86_64 — CI Docker builds compatibles Rust 1.79+

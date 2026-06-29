@@ -9,6 +9,20 @@
 
 ---
 
+## [1.1.6] — 2026-06-29 · Élimination de tous les crates edition2024 compilés sur Linux
+
+### Fixed
+- `Cargo.toml` : suppression de la feature `qr` de `totp-rs` (évite `image → moxcms → pxfm`, tous edition2024)
+- `Cargo.toml` : downgrade `utoipa-swagger-ui` de `7` → `6` (brise la chaîne `zip → num_enum → proc-macro-crate 2.0.2 → toml_datetime =0.6.3` qui bloquait le downgrade de `sozu-command-lib`)
+- `Cargo.lock` : downgrade `base64ct` `1.8.3` → `1.6.0` (edition2024 → edition2021)
+- `Cargo.lock` : downgrade `clap` `4.6.1` → `4.5.38`, `clap_builder` `4.6.0` → `4.5.38`, `clap_derive` `4.6.1` → `4.5.32`, `clap_lex` `1.1.0` → `0.7.7` (tous edition2024 → edition2021)
+- `Cargo.lock` : downgrade `home` `0.5.12` → `0.5.11` (edition2024 → edition2021)
+- `Cargo.lock` : downgrade `idna_adapter` `1.2.2` → `1.1.0` (edition2024 → edition2021, supprime la chaîne ICU lourde)
+- `Cargo.lock` : downgrade `rmp` `0.8.15` → `0.8.14`, `rmp-serde` `1.3.1` → `1.3.0` (edition2024 → edition2021)
+- Les 2 crates edition2024 restants (`security-framework 3.7.0`, `wit-bindgen 0.57.1`) sont derrière des guards de cible (`target_vendor = "apple"` / `target_arch = "wasm32"`) et ne sont pas compilés sur Linux x86_64
+
+---
+
 ## [1.1.5] — 2026-06-28 · Fix edition2024 crates incompatibles avec Rust < 1.85
 
 ### Fixed
